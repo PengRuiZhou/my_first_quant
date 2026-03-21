@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p quant)",
+      "Bash(mv data:*)",
+      "Bash(mkdir -p /Users/peng/my_first_quant/quant)",
+      "Bash(mv /Users/peng/my_first_quant/data /Users/peng/my_first_quant/strategy /Users/peng/my_first_quant/backtest /Users/peng/my_first_quant/execution /Users/peng/my_first_quant/core /Users/peng/my_first_quant/quant/)"
+    ]
+  }
+}
