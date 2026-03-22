@@ -104,11 +104,11 @@
 - [x] Tushare 适配器 (sources/tushare_client.py)
 - [x] AKShare 适配器 (sources/akshare_client.py)
 - [x] 双源交叉验证器 (sources/validator.py)
-- [ ] ETL 清洗器基类 (etl/base.py)
-- [ ] ETL 清洗器 (etl/cleaners.py - 缺失值/异常值/去重)
-- [ ] 复权处理 (etl/adjust.py)
-- [ ] 状态过滤 (etl/filters.py - ST/停牌/退市)
-- [ ] ETL 管道编排 (etl/pipeline.py)
+- [x] ETL 清洗器基类 (etl/base.py)
+- [x] ETL 清洗器 (etl/cleaners.py - 缺失值/异常值/去重)
+- [x] 复权处理 (etl/adjust.py)
+- [x] 状态过滤 (etl/filters.py - ST/停牌/退市)
+- [x] ETL 管道编排 (etl/pipeline.py)
 - [ ] 数据仓库模式 (storage/repository.py)
 - [ ] APScheduler 调度 (storage/scheduler.py)
 - [ ] CLI 命令扩展 (fetch/scheduler/init_data)
@@ -117,7 +117,7 @@
 - **架构方案：** 分层架构（数据源/清洗/存储/调度各层分离）
 - **数据源策略：** 双源并行，交叉验证
 - **初始数据：** 股票列表/指数行情/股票日线/每日指标/交易日历/财务指标
-- **状态：** in_progress（Phase 1 数据源层完成）
+- **状态：** in_progress（Phase 1-2 完成：数据源层 + ETL 清洗层）
 
 ### 阶段 4：策略模块
 - [ ] Verses 因子库

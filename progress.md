@@ -66,7 +66,7 @@
   - 可视化：matplotlib 3.10.8, seaborn 0.13.2, plotly 6.6.0
 
 ### 阶段 3：数据支撑模块
-- **状态：** in_progress（Phase 1 数据源层完成，Phase 2-5 待实现）
+- **状态：** in_progress（Phase 1-2 完成， Phase 3-5 待实现）
 - **开始时间：** 2026-03-22 (当前会话)
 - 已采取的行动：
   - Brainstorming 设计讨论
@@ -79,6 +79,7 @@
   - 编写实现计划 `docs/superpowers/plans/2026-03-22-stage3-implementation.md`
   - Spec 审查通过（无阻塞问题）
   - **Phase 1 数据源层实现完成**（2026-03-22）
+  - **Phase 2 ETL 清洗层实现完成**（2026-03-22）
 - 创建/修改的文件：
   - task_plan.md（更新阶段3任务清单）
   - findings.md（更新模块3设计决策和架构详情）
@@ -90,10 +91,17 @@
   - **quant/data/sources/akshare_client.py**（AKShare 适配器）✅
   - **quant/data/sources/validator.py**（双源交叉验证器）✅
   - **quant/data/sources/__init__.py**（更新导出）✅
+  - **quant/data/etl/base.py**（ETL 基类）✅
+  - **quant/data/etl/cleaners.py**（基础清洗器）✅
+  - **quant/data/etl/adjust.py**（复权处理器）✅
+  - **quant/data/etl/filters.py**（状态过滤器）✅
+  - **quant/data/etl/pipeline.py**（ETL 管道编排）✅
+  - **quant/data/etl/__init__.py**（更新导出）✅
 - 待实现文件：
-  - ~~quant/data/sources/base.py, tushare_client.py, akshare_client.py, validator.py~~ ✅
-  - quant/data/etl/base.py, cleaners.py, adjust.py, filters.py, pipeline.py
-  - quant/data/storage/repository.py, scheduler.py
+  - ~~quant/data/sources/*~~ ✅
+  - ~~quant/data/etl/*~~ ✅
+  - quant/data/storage/repository.py
+  - quant/data/storage/scheduler.py
   - quant/cli.py（扩展 fetch/scheduler/init_data 命令）
 
 ### 阶段 4：策略模块
@@ -143,15 +151,16 @@
 | 2026-03-22 Stage3 | Pylance: AKShare 属性不存在 | 1 | akshare_client.py: 使用 `getattr` 动态调用接口 |
 | 2026-03-22 Stage3 | Pylance: `df.get()` 返回类型问题 | 1 | akshare_client.py: 改用 `if col in df.columns` 判断 |
 | 2026-03-22 Stage3 | Pylance: `self._report` 可能为 None | 1 | validator.py: 添加 `if self._report is not None` 检查 |
+| 2026-03-22 Stage3 Phase2 | ImportError: `get_logger` not found | 1 | pipeline.py: 改用 `from loguru import logger` 直接导入 |
 
 ## 五问重启检查
 | 问题 | 答案 |
 |------|------|
-| 我在哪里？ | 阶段 3 Phase 1 数据源层完成，待继续 Phase 2 ETL 层 |
-| 我要去哪里？ | 阶段 3 Phase 2-5 → 阶段 4-7：策略 → 回测 → 交易 → 集成 |
+| 我在哪里？ | 阶段 3 Phase 2 ETL 清洗层完成，待继续 Phase 3 存储层 |
+| 我要去哪里？ | 阶段 3 Phase 3-5 → 阶段 4-7：策略 → 回测 → 交易 → 集成 |
 | 目标是什么？ | 构建 A 股量化交易框架，支持因子研究、回测和实盘 |
-| 我学到了什么？ | 见 findings.md（数据库 Schema、配置系统、CLI 工具、包结构设计、Stage 3 架构、数据源适配） |
-| 我做了什么？ | Stage 3 Phase 1 完成：数据源抽象接口/Tushare适配器/AKShare适配器/交叉验证器 |
+| 我学到了什么？ | 见 findings.md（数据库 Schema、配置系统、CLI 工具、包结构设计、Stage 3 架构、数据源适配、ETL 清洗层） |
+| 我做了什么？ | Stage 3 Phase 1-2 完成：数据源层 + ETL 清洗层（基类/清洗器/复权/过滤/管道） |
 
 ---
 *完成每个阶段或遇到错误后更新*

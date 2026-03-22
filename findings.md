@@ -129,6 +129,43 @@ AKShare ──┘                         │
 - `get_financial_indicator()` - 财务指标
 - `get_adj_factor()` - 复权因子
 
+#### Stage 3 Phase 2 实现发现（ETL 清洗层）
+
+**ETL 架构设计**：
+- **基类**：`BaseCleaner`, `BaseTransformer`, `BaseFilter` - 抽象接口，支持管道组合
+- **清洗器**：`MissingValueCleaner`, `DuplicateCleaner`, `OutlierCleaner` - 处理数据质量问题
+- **复权**：`PriceAdjuster` - 支持前复权(qfq)/后复权(hfq)/不复权(none)
+- **过滤**：`StockStatusFilter`, `TradeableFilter` - 排除 ST/停牌/退市股票
+- **管道**：`ETLPipeline` - 链式调用，组合所有清洗步骤
+
+**ETL 执行顺序**：
+```
+原始数据 → 去重 → 缺失值处理 → 异常值处理 → 复权 → 状态过滤 → 清洗后数据
+```
+
+**清洗器设计要点**：
+1. **无状态设计**：清洗器只有配置参数，不保存状态，便于复用
+2. **统计信息**：每个清洗器记录输入/输出行数、移除/修改的行数
+3. **分组填充**：缺失值按股票分组填充，避免跨股票污染
+4. **缩尾处理**：异常值使用 winsorize 方法，保留极值但压缩到边界
+5. **链式调用**：`pipeline.add_cleaner().set_adjuster().set_filter()`
+
+**复权计算**：
+- 前复权(qfq): `adj_price = price * adj_factor / latest_adj_factor`
+- 后复权(hfq): `adj_price = price * adj_factor`
+- 需重算涨跌幅：`adj_pct_chg = (adj_close - prev_adj_close) / prev_adj_close * 100`
+
+**状态过滤条件**：
+- ST 股票：从股票名称判断（包含 ST、*ST、S*ST 等）
+- 退市股票：`list_status` 为 D(退市) 或 P(暂停上市)
+- 停牌股票：需要外部数据源提供
+- 换手率/价格/成交量：支持阈值过滤
+
+**预设管道**：
+- `create_default_pipeline()`: 去重 + 缺失值填充 + 缩尾 + 前复权 + 状态过滤
+- `create_minimal_pipeline()`: 仅去重 + 缺失值填充
+- `create_strict_pipeline()`: 去重 + 删除缺失值 + 删除异常值 + 严格过滤
+
 ### 模块4：回测
 - 因子回测（单因子 IC/IR 分析）
 - 策略回测（组合收益/风险）
