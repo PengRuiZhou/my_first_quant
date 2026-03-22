@@ -6,7 +6,7 @@
 
 ## 当前阶段
 
-阶段 1（完成）→ 阶段 2（完成）→ 阶段 3（待开始）
+阶段 1（完成）→ 阶段 2（完成）→ 阶段 3（进行中）
 
 ## 项目规格
 
@@ -100,12 +100,20 @@
 - **状态：** complete
 
 ### 阶段 3：数据支撑模块
-- [ ] 数据源抽象接口
-- [ ] Tushare/AKShare 适配器
-- [ ] 数据清洗 ETL Pipeline
-- [ ] PostgreSQL 数据存储
-- [ ] 定时任务调度
-- **状态：** pending
+- [ ] 数据源抽象接口 (base.py)
+- [ ] Tushare 适配器 (tushare_client.py)
+- [ ] AKShare 适配器 (akshare_client.py)
+- [ ] 双源交叉验证器 (validator.py)
+- [ ] ETL 清洗器 (cleaners.py - 缺失值/异常值)
+- [ ] 复权处理 (adjust.py)
+- [ ] 状态过滤 (filters.py - ST/停牌/退市)
+- [ ] 数据仓库模式 (repository.py)
+- [ ] APScheduler 调度 (scheduler.py)
+- [ ] CLI 命令扩展
+- **架构方案：** 分层架构（数据源/清洗/存储/调度各层分离）
+- **数据源策略：** 双源并行，交叉验证
+- **初始数据：** 股票列表/指数行情/股票日线/每日指标
+- **状态：** in_progress
 
 ### 阶段 4：策略模块
 - [ ] Verses 因子库
