@@ -109,15 +109,15 @@
 - [x] 复权处理 (etl/adjust.py)
 - [x] 状态过滤 (etl/filters.py - ST/停牌/退市)
 - [x] ETL 管道编排 (etl/pipeline.py)
-- [ ] 数据仓库模式 (storage/repository.py)
-- [ ] APScheduler 调度 (storage/scheduler.py)
+- [x] 数据仓库模式 (storage/repository.py)
+- [x] APScheduler 调度 (storage/scheduler.py)
 - [ ] CLI 命令扩展 (fetch/scheduler/init_data)
 - **设计文档：** [2026-03-22-data-module-design.md](docs/superpowers/specs/2026-03-22-data-module-design.md)
 - **实现计划：** [2026-03-22-stage3-implementation.md](docs/superpowers/plans/2026-03-22-stage3-implementation.md)
 - **架构方案：** 分层架构（数据源/清洗/存储/调度各层分离）
 - **数据源策略：** 双源并行，交叉验证
 - **初始数据：** 股票列表/指数行情/股票日线/每日指标/交易日历/财务指标
-- **状态：** in_progress（Phase 1-2 完成：数据源层 + ETL 清洗层）
+- **状态：** in_progress（Phase 1-3 完成：数据源层 + ETL 清洗层 + 存储层）
 
 ### 阶段 4：策略模块
 - [ ] Verses 因子库

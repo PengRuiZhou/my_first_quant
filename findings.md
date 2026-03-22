@@ -166,6 +166,43 @@ AKShare ──┘                         │
 - `create_minimal_pipeline()`: 仅去重 + 缺失值填充
 - `create_strict_pipeline()`: 去重 + 删除缺失值 + 删除异常值 + 严格过滤
 
+#### Stage 3 Phase 3 实现发现（存储层）
+
+**DataRepository 设计**：
+- **异步 ORM**：使用 SQLAlchemy 2.0 async (asyncpg 驱动)
+- **批量插入**：PostgreSQL `INSERT ... ON CONFLICT DO UPDATE` 实现 upsert
+- **数据类型方法**：
+  - `get_stock_list()`, `upsert_stock_info()`
+  - `get_daily_quotes()`, `upsert_daily_quotes()`
+  - `get_index_quotes()`, `upsert_index_quotes()`
+  - `get_trade_dates()`, `get_latest_trade_date()`, `upsert_trade_calendar()`
+  - `get_daily_basic()`, `upsert_daily_basic()`
+  - `get_financial_indicator()`, `upsert_financial_indicator()`
+  - `get_daily_quote_count()`, `get_stock_count()`
+
+**DataScheduler 设计**：
+- **调度器**：APScheduler AsyncIOScheduler
+- **默认定时任务**：
+  - 每日 18:00 更新日线行情
+  - 每日 18:30 更新每日指标
+  - 每周六 10:00 更新股票列表
+  - 每周六 10:30 更新交易日历
+- **手动触发**：`run_job(job_id)` 支持手动运行任务
+- **历史初始化**：`init_historical_data(years)` 批量获取历史数据
+
+**技术实现要点**：
+1. **PostgreSQL Upsert**：使用 `insert().on_conflict_do_update()` 处理重复数据
+2. **NaN 处理**：DataFrame 转 dict 时，将 `pd.NA`/`np.nan` 转为 `None`
+3. **Pylance 类型问题**：`result.rowcount` 需用 `getattr(result, "rowcount", 0)` 访问
+4. **会话管理**：使用 `async_sessionmaker` 创建异步会话，`expire_on_commit=False` 避免延迟加载问题
+
+**存储层数据流**：
+```
+DataFrame → _bulk_insert() → records → PostgreSQL (upsert)
+                                                    ↓
+query → Result → scalars().all() → DataFrame
+```
+
 ### 模块4：回测
 - 因子回测（单因子 IC/IR 分析）
 - 策略回测（组合收益/风险）

@@ -58,10 +58,10 @@ A股量化交易框架，包含四大模块：
 |------|----------|----------|
 | **数据源层** | ✅ 完成 | `quant/data/sources/` - Tushare/AKShare 适配器 + 交叉验证 |
 | **ETL 清洗层** | ✅ 完成 | `quant/data/etl/` - 缺失值/异常值/复权/状态过滤/管道 |
-| **存储层** | 🚧 进行中 | `quant/data/storage/` - Repository + Scheduler |
+| **存储层** | ✅ 完成 | `quant/data/storage/` - DataRepository + DataScheduler |
 | **数据模型** | ✅ 完成 | `quant/data/models/` - 10 个 SQLAlchemy 模型 |
 | **配置系统** | ✅ 完成 | `quant/core/config.py` - pydantic-settings |
-| **CLI 工具** | ✅ 基础 | `quant/cli.py` - typer + rich |
+| **CLI 工具** | 🚧 待扩展 | `quant/cli.py` - typer + rich (需添加 fetch/scheduler 命令) |
 
 ## Core Concepts
 
@@ -166,19 +166,19 @@ quant init                 # 初始化配置（创建.env）
 quant db create            # 创建数据库表
 quant db drop              # 删除数据库表
 
-# 数据获取（Stage 3 新增）
+# 数据获取（Stage 3 Phase 4 待实现）
 quant fetch stock_list     # 获取股票列表
 quant fetch daily          # 获取日线数据
 quant fetch index          # 获取指数行情
 quant fetch basic          # 获取每日指标
 quant fetch calendar       # 获取交易日历
 
-# 调度器（Stage 3 新增）
+# 调度器（Stage 3 Phase 4 待实现）
 quant scheduler start      # 启动调度器
 quant scheduler stop       # 停止调度器
 quant scheduler status     # 查看调度状态
 
-# 初始化数据（Stage 3 新增）
+# 初始化数据（Stage 3 Phase 4 待实现）
 quant init-data --years 3  # 初始化3年历史数据
 
 quant backtest <strategy>  # 运行回测
