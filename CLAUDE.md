@@ -46,8 +46,9 @@ Verse = Operator(Data)
 my_first_quant/              # 项目根目录
 ├── quant/                   # Python 包
 │   ├── data/                # 数据支撑模块
-│   │   ├── sources/         # 数据源适配器
-│   │   ├── etl/             # 数据清洗
+│   │   ├── sources/         # 数据源适配器（Tushare/AKShare）
+│   │   ├── etl/             # 数据清洗 ETL Pipeline
+│   │   ├── storage/         # 存储层（Repository + Scheduler）
 │   │   └── models/          # 数据模型（SQLAlchemy）
 │   ├── strategy/            # 策略模块
 │   │   ├── verses/          # 因子库
@@ -66,6 +67,8 @@ my_first_quant/              # 项目根目录
 │   │   └── logging.py       # 日志配置（loguru）
 │   └── cli.py               # 命令行接口（typer）
 ├── tests/                   # 测试
+├── docs/                    # 文档
+│   └── superpowers/specs/   # 设计文档
 ├── Makefile                 # 常用命令
 └── pyproject.toml           # 依赖管理
 ```
@@ -108,7 +111,23 @@ make format                 # 格式化
 quant version              # 显示版本
 quant init                 # 初始化配置（创建.env）
 quant db create            # 创建数据库表
-quant fetch tushare daily  # 获取日线数据
+quant db drop              # 删除数据库表
+
+# 数据获取（Stage 3 新增）
+quant fetch stock_list     # 获取股票列表
+quant fetch daily          # 获取日线数据
+quant fetch index          # 获取指数行情
+quant fetch basic          # 获取每日指标
+quant fetch calendar       # 获取交易日历
+
+# 调度器（Stage 3 新增）
+quant scheduler start      # 启动调度器
+quant scheduler stop       # 停止调度器
+quant scheduler status     # 查看调度状态
+
+# 初始化数据（Stage 3 新增）
+quant init-data --years 3  # 初始化3年历史数据
+
 quant backtest <strategy>  # 运行回测
 ```
 
@@ -117,3 +136,5 @@ quant backtest <strategy>  # 运行回测
 - [task_plan.md](task_plan.md) - 任务计划和阶段跟踪
 - [findings.md](findings.md) - 需求和技术发现
 - [progress.md](progress.md) - 进度日志
+- [docs/superpowers/specs/](docs/superpowers/specs/) - 设计文档目录
+  - [2026-03-22-data-module-design.md](docs/superpowers/specs/2026-03-22-data-module-design.md) - Stage 3 数据模块设计
