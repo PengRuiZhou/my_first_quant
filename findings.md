@@ -55,6 +55,116 @@
 - 市场信息获取（指数、行业分类）
 - 数据清洗 ETL
 - PostgreSQL 持久化
+- **Stage 3 设计决策**：
+  - 数据源策略：双源并行（Tushare + AKShare），交叉验证
+  - 定时调度：APScheduler
+  - ETL 范围：基础清洗/异常值处理/复权处理/股票状态过滤
+  - 初始数据：股票列表/指数行情/股票日线/每日指标/交易日历/财务指标
+  - 架构：分层架构（sources/etl/storage 各层分离）
+  - 设计文档：`docs/superpowers/specs/2026-03-22-data-module-design.md`
+
+#### Stage 3 架构详情
+
+**目录结构**：
+```
+quant/data/
+├── sources/           # 数据源层
+│   ├── base.py        # 抽象接口 (BaseDataSource)
+│   ├── tushare_client.py
+│   ├── akshare_client.py
+│   └── validator.py   # 双源交叉验证
+├── etl/               # ETL 清洗层
+│   ├── base.py        # 清洗器基类
+│   ├── cleaners.py    # 缺失值/异常值/去重
+│   ├── adjust.py      # 复权处理
+│   ├── filters.py     # 状态过滤
+│   └── pipeline.py    # ETL 管道编排
+├── storage/           # 存储层
+│   ├── repository.py  # 数据仓库 (CRUD)
+│   └── scheduler.py   # APScheduler 调度
+└── models/            # 数据模型（已有）
+```
+
+**数据流**：
+```
+Tushare ──┐
+          ├──> validator.py ──> pipeline.py ──> repository.py ──> PostgreSQL
+AKShare ──┘                         │
+                                    ▼
+                            scheduler.py (定时触发)
+```
+
+#### Stage 3 Phase 1 实现发现（数据源层）
+
+**Tushare 与 AKShare 差异**：
+| 差异点 | Tushare | AKShare |
+|--------|---------|---------|
+| 股票代码格式 | `000001.SZ` | `000001` |
+| 接口风格 | REST API (pro_api) | 直接函数调用 |
+| 字段命名 | 英文 (ts_code, trade_date) | 中文 (代码, 日期) |
+| 异步支持 | 需用 run_in_executor 包装 | 需用 run_in_executor 包装 |
+| 复权因子 | 直接提供 adj_factor | 需通过 qfq/原始价格比值计算 |
+| 类型提示 | 有类型存根 | 无完整类型存根，需用 getattr 动态调用 |
+
+**技术实现要点**：
+1. **异步适配**：Tushare/AKShare 都是同步 API，使用 `asyncio.run_in_executor` 包装
+2. **重试机制**：`@retry_on_failure` 装饰器，支持配置重试次数和延迟
+3. **字段映射**：使用字典映射 Tushare/AKShare 字段到标准数据库字段
+4. **代码转换**：AKShare 需要代码格式转换（`_convert_code_to_ts`, `_convert_ts_to_code`）
+5. **交叉验证**：`DataValidator` 支持数值容差比较和字符串完全匹配
+6. **动态调用**：AKShare 接口名可能变化，使用 `getattr(ak, "func_name", None)` 动态获取
+
+**Pylance 类型问题处理**：
+- `last_error` 初始化为 `None`，需添加类型注解和 None 检查
+- `df.get(key, default)` 返回值可能是 Series 或默认值，用 `if key in df.columns` 判断
+- 可选属性 `self._report` 需在使用前检查 `is not None`
+
+**BaseDataSource 接口方法**：
+- `get_stock_list()` - 股票列表
+- `get_index_list()` - 指数列表
+- `get_daily_quotes()` - 日线行情
+- `get_index_quotes()` - 指数行情
+- `get_trade_calendar()` - 交易日历
+- `get_daily_basic()` - 每日指标
+- `get_financial_indicator()` - 财务指标
+- `get_adj_factor()` - 复权因子
+
+#### Stage 3 Phase 2 实现发现（ETL 清洗层）
+
+**ETL 架构设计**：
+- **基类**：`BaseCleaner`, `BaseTransformer`, `BaseFilter` - 抽象接口，支持管道组合
+- **清洗器**：`MissingValueCleaner`, `DuplicateCleaner`, `OutlierCleaner` - 处理数据质量问题
+- **复权**：`PriceAdjuster` - 支持前复权(qfq)/后复权(hfq)/不复权(none)
+- **过滤**：`StockStatusFilter`, `TradeableFilter` - 排除 ST/停牌/退市股票
+- **管道**：`ETLPipeline` - 链式调用，组合所有清洗步骤
+
+**ETL 执行顺序**：
+```
+原始数据 → 去重 → 缺失值处理 → 异常值处理 → 复权 → 状态过滤 → 清洗后数据
+```
+
+**清洗器设计要点**：
+1. **无状态设计**：清洗器只有配置参数，不保存状态，便于复用
+2. **统计信息**：每个清洗器记录输入/输出行数、移除/修改的行数
+3. **分组填充**：缺失值按股票分组填充，避免跨股票污染
+4. **缩尾处理**：异常值使用 winsorize 方法，保留极值但压缩到边界
+5. **链式调用**：`pipeline.add_cleaner().set_adjuster().set_filter()`
+
+**复权计算**：
+- 前复权(qfq): `adj_price = price * adj_factor / latest_adj_factor`
+- 后复权(hfq): `adj_price = price * adj_factor`
+- 需重算涨跌幅：`adj_pct_chg = (adj_close - prev_adj_close) / prev_adj_close * 100`
+
+**状态过滤条件**：
+- ST 股票：从股票名称判断（包含 ST、*ST、S*ST 等）
+- 退市股票：`list_status` 为 D(退市) 或 P(暂停上市)
+- 停牌股票：需要外部数据源提供
+- 换手率/价格/成交量：支持阈值过滤
+
+**预设管道**：
+- `create_default_pipeline()`: 去重 + 缺失值填充 + 缩尾 + 前复权 + 状态过滤
+- `create_minimal_pipeline()`: 仅去重 + 缺失值填充
+- `create_strict_pipeline()`: 去重 + 删除缺失值 + 删除异常值 + 严格过滤
 
 ### 模块4：回测
 - 因子回测（单因子 IC/IR 分析）

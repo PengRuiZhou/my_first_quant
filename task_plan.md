@@ -6,7 +6,7 @@
 
 ## 当前阶段
 
-阶段 1（完成）→ 阶段 2（完成）→ 阶段 3（待开始）
+阶段 1（完成）→ 阶段 2（完成）→ 阶段 3（进行中）
 
 ## 项目规格
 
@@ -100,12 +100,24 @@
 - **状态：** complete
 
 ### 阶段 3：数据支撑模块
-- [ ] 数据源抽象接口
-- [ ] Tushare/AKShare 适配器
-- [ ] 数据清洗 ETL Pipeline
-- [ ] PostgreSQL 数据存储
-- [ ] 定时任务调度
-- **状态：** pending
+- [x] 数据源抽象接口 (sources/base.py)
+- [x] Tushare 适配器 (sources/tushare_client.py)
+- [x] AKShare 适配器 (sources/akshare_client.py)
+- [x] 双源交叉验证器 (sources/validator.py)
+- [x] ETL 清洗器基类 (etl/base.py)
+- [x] ETL 清洗器 (etl/cleaners.py - 缺失值/异常值/去重)
+- [x] 复权处理 (etl/adjust.py)
+- [x] 状态过滤 (etl/filters.py - ST/停牌/退市)
+- [x] ETL 管道编排 (etl/pipeline.py)
+- [ ] 数据仓库模式 (storage/repository.py)
+- [ ] APScheduler 调度 (storage/scheduler.py)
+- [ ] CLI 命令扩展 (fetch/scheduler/init_data)
+- **设计文档：** [2026-03-22-data-module-design.md](docs/superpowers/specs/2026-03-22-data-module-design.md)
+- **实现计划：** [2026-03-22-stage3-implementation.md](docs/superpowers/plans/2026-03-22-stage3-implementation.md)
+- **架构方案：** 分层架构（数据源/清洗/存储/调度各层分离）
+- **数据源策略：** 双源并行，交叉验证
+- **初始数据：** 股票列表/指数行情/股票日线/每日指标/交易日历/财务指标
+- **状态：** in_progress（Phase 1-2 完成：数据源层 + ETL 清洗层）
 
 ### 阶段 4：策略模块
 - [ ] Verses 因子库
@@ -162,6 +174,9 @@
 | 数据库表：10个 | 股票/指数/行情/财务/因子分类存储 |
 | 包结构：quant/ 顶层包 | 清晰的命名空间，避免与系统包冲突 |
 | Python 版本：>= 3.12 | 使用最新稳定版本 |
+| 数据源策略：双源并行 | Tushare + AKShare 交叉验证，提高数据质量 |
+| 调度器：APScheduler | 轻量级定时任务，适合单机部署 |
+| ETL 架构：管道模式 | 可组合的清洗器链，灵活配置 |
 
 ## 遇到的错误
 | 错误 | 尝试次数 | 解决方案 |
