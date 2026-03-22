@@ -66,19 +66,27 @@
   - 可视化：matplotlib 3.10.8, seaborn 0.13.2, plotly 6.6.0
 
 ### 阶段 3：数据支撑模块
-- **状态：** in_progress
+- **状态：** in_progress（设计完成，待实现）
 - **开始时间：** 2026-03-22 (当前会话)
 - 已采取的行动：
   - Brainstorming 设计讨论
   - 确定数据源策略：双源并行，交叉验证
   - 确定调度方式：APScheduler
   - 确定 ETL 范围：基础清洗/异常值/复权/状态过滤
-  - 确定初始数据：股票列表/指数行情/股票日线/每日指标
+  - 确定初始数据：股票列表/指数行情/股票日线/每日指标/交易日历/财务指标
   - 确定架构方案：分层架构（sources/etl/storage 分离）
+  - 编写设计文档 `docs/superpowers/specs/2026-03-22-data-module-design.md`
+  - Spec 审查通过（无阻塞问题）
 - 创建/修改的文件：
   - task_plan.md（更新阶段3任务清单）
-  - findings.md（更新模块3设计决策）
+  - findings.md（更新模块3设计决策和架构详情）
   - progress.md（更新进度）
+  - docs/superpowers/specs/2026-03-22-data-module-design.md（设计文档）
+- 待实现文件：
+  - quant/data/sources/base.py, tushare_client.py, akshare_client.py, validator.py
+  - quant/data/etl/base.py, cleaners.py, adjust.py, filters.py, pipeline.py
+  - quant/data/storage/repository.py, scheduler.py
+  - quant/cli.py（扩展 fetch/scheduler/init_data 命令）
 
 ### 阶段 4：策略模块
 - **状态：** pending
@@ -123,11 +131,11 @@
 ## 五问重启检查
 | 问题 | 答案 |
 |------|------|
-| 我在哪里？ | 阶段 2 完成，准备开始阶段 3 |
-| 我要去哪里？ | 阶段 3-7：数据支撑 → 策略 → 回测 → 交易 → 集成 |
+| 我在哪里？ | 阶段 3 设计完成，待开始实现 |
+| 我要去哪里？ | 阶段 3 实现 → 阶段 4-7：策略 → 回测 → 交易 → 集成 |
 | 目标是什么？ | 构建 A 股量化交易框架，支持因子研究、回测和实盘 |
-| 我学到了什么？ | 见 findings.md（数据库 Schema、配置系统、CLI 工具、包结构设计） |
-| 我做了什么？ | 完成项目骨架、依赖管理、10个数据库表、配置系统、CLI、文档、quant/ 包重构 |
+| 我学到了什么？ | 见 findings.md（数据库 Schema、配置系统、CLI 工具、包结构设计、Stage 3 架构） |
+| 我做了什么？ | Stage 3 设计完成：数据源层/ETL层/存储层/调度层设计文档已编写并审查通过 |
 
 ---
 *完成每个阶段或遇到错误后更新*

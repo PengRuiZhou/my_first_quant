@@ -59,8 +59,40 @@
   - 数据源策略：双源并行（Tushare + AKShare），交叉验证
   - 定时调度：APScheduler
   - ETL 范围：基础清洗/异常值处理/复权处理/股票状态过滤
-  - 初始数据：股票列表/指数行情/股票日线/每日指标
+  - 初始数据：股票列表/指数行情/股票日线/每日指标/交易日历/财务指标
   - 架构：分层架构（sources/etl/storage 各层分离）
+  - 设计文档：`docs/superpowers/specs/2026-03-22-data-module-design.md`
+
+#### Stage 3 架构详情
+
+**目录结构**：
+```
+quant/data/
+├── sources/           # 数据源层
+│   ├── base.py        # 抽象接口 (BaseDataSource)
+│   ├── tushare_client.py
+│   ├── akshare_client.py
+│   └── validator.py   # 双源交叉验证
+├── etl/               # ETL 清洗层
+│   ├── base.py        # 清洗器基类
+│   ├── cleaners.py    # 缺失值/异常值/去重
+│   ├── adjust.py      # 复权处理
+│   ├── filters.py     # 状态过滤
+│   └── pipeline.py    # ETL 管道编排
+├── storage/           # 存储层
+│   ├── repository.py  # 数据仓库 (CRUD)
+│   └── scheduler.py   # APScheduler 调度
+└── models/            # 数据模型（已有）
+```
+
+**数据流**：
+```
+Tushare ──┐
+          ├──> validator.py ──> pipeline.py ──> repository.py ──> PostgreSQL
+AKShare ──┘                         │
+                                    ▼
+                            scheduler.py (定时触发)
+```
 
 ### 模块4：回测
 - 因子回测（单因子 IC/IR 分析）
