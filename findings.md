@@ -94,6 +94,41 @@ AKShare ──┘                         │
                             scheduler.py (定时触发)
 ```
 
+#### Stage 3 Phase 1 实现发现（数据源层）
+
+**Tushare 与 AKShare 差异**：
+| 差异点 | Tushare | AKShare |
+|--------|---------|---------|
+| 股票代码格式 | `000001.SZ` | `000001` |
+| 接口风格 | REST API (pro_api) | 直接函数调用 |
+| 字段命名 | 英文 (ts_code, trade_date) | 中文 (代码, 日期) |
+| 异步支持 | 需用 run_in_executor 包装 | 需用 run_in_executor 包装 |
+| 复权因子 | 直接提供 adj_factor | 需通过 qfq/原始价格比值计算 |
+| 类型提示 | 有类型存根 | 无完整类型存根，需用 getattr 动态调用 |
+
+**技术实现要点**：
+1. **异步适配**：Tushare/AKShare 都是同步 API，使用 `asyncio.run_in_executor` 包装
+2. **重试机制**：`@retry_on_failure` 装饰器，支持配置重试次数和延迟
+3. **字段映射**：使用字典映射 Tushare/AKShare 字段到标准数据库字段
+4. **代码转换**：AKShare 需要代码格式转换（`_convert_code_to_ts`, `_convert_ts_to_code`）
+5. **交叉验证**：`DataValidator` 支持数值容差比较和字符串完全匹配
+6. **动态调用**：AKShare 接口名可能变化，使用 `getattr(ak, "func_name", None)` 动态获取
+
+**Pylance 类型问题处理**：
+- `last_error` 初始化为 `None`，需添加类型注解和 None 检查
+- `df.get(key, default)` 返回值可能是 Series 或默认值，用 `if key in df.columns` 判断
+- 可选属性 `self._report` 需在使用前检查 `is not None`
+
+**BaseDataSource 接口方法**：
+- `get_stock_list()` - 股票列表
+- `get_index_list()` - 指数列表
+- `get_daily_quotes()` - 日线行情
+- `get_index_quotes()` - 指数行情
+- `get_trade_calendar()` - 交易日历
+- `get_daily_basic()` - 每日指标
+- `get_financial_indicator()` - 财务指标
+- `get_adj_factor()` - 复权因子
+
 ### 模块4：回测
 - 因子回测（单因子 IC/IR 分析）
 - 策略回测（组合收益/风险）

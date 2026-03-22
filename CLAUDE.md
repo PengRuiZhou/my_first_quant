@@ -105,6 +105,18 @@ make lint                   # lint 检查
 make format                 # 格式化
 ```
 
+## Data Source Notes
+
+**Tushare vs AKShare**：
+- Tushare 使用 REST API，需要配置 Token
+- AKShare 使用直接函数调用，无需 Token
+- 两者都是同步 API，使用 `asyncio.run_in_executor` 包装为异步
+- AKShare 接口名可能变化，使用 `getattr` 动态调用
+
+**Pylance 类型提示**：
+- AKShare 无完整类型存根，部分警告可忽略
+- 使用 `getattr(ak, "func_name", None)` 动态调用避免类型错误
+
 ## CLI Commands
 
 ```bash
@@ -138,3 +150,5 @@ quant backtest <strategy>  # 运行回测
 - [progress.md](progress.md) - 进度日志
 - [docs/superpowers/specs/](docs/superpowers/specs/) - 设计文档目录
   - [2026-03-22-data-module-design.md](docs/superpowers/specs/2026-03-22-data-module-design.md) - Stage 3 数据模块设计
+- [docs/superpowers/plans/](docs/superpowers/plans/) - 实现计划目录
+  - [2026-03-22-stage3-implementation.md](docs/superpowers/plans/2026-03-22-stage3-implementation.md) - Stage 3 实现计划
