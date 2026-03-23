@@ -1,7 +1,10 @@
 """命令行接口"""
 
+import asyncio
+
 import typer
 from rich.console import Console
+from rich.table import Table
 
 app = typer.Typer(
     name="quant",
@@ -15,14 +18,15 @@ console = Console()
 def version() -> None:
     """显示版本信息"""
     from quant import __version__
+
     console.print(f"[green]quant[/green] version: [bold]{__version__}[/bold]")
 
 
 @app.command()
 def init() -> None:
     """初始化项目（创建配置文件）"""
-    from pathlib import Path
     import shutil
+    from pathlib import Path
 
     env_example = Path(".env.example")
     env_file = Path(".env")
@@ -45,7 +49,6 @@ def db(command: str) -> None:
     Commands:
         create: 创建所有表
         drop: 删除所有表
-        migrate: 运行迁移
     """
     from quant.core import get_settings
     from quant.data.models import Base, get_engine
@@ -63,17 +66,408 @@ def db(command: str) -> None:
         console.print(f"[red]未知命令: {command}[/red]")
 
 
+# ===== Fetch 命令 =====
+
 @app.command()
 def fetch(
-    source: str = typer.Argument(..., help="数据源: tushare/akshare"),
-    data_type: str = typer.Argument(..., help="数据类型: stock/daily/financial"),
-    start_date: str = typer.Option(None, "--start", "-s", help="开始日期"),
-    end_date: str = typer.Option(None, "--end", "-e", help="结束日期"),
+    data_type: str = typer.Argument(
+        ...,
+        help="数据类型: stock_list/daily/index/basic/calendar/financial",
+    ),
+    start_date: str | None = typer.Option(
+        None, "--start", "-s", help="开始日期 (YYYYMMDD)"
+    ),
+    end_date: str | None = typer.Option(
+        None, "--end", "-e", help="结束日期 (YYYYMMDD)"
+    ),
+    source: str = typer.Option(
+        "tushare", "--source", "-src", help="数据源: tushare/akshare"
+    ),
 ) -> None:
-    """获取数据"""
-    console.print(f"[blue]正在从 {source} 获取 {data_type} 数据...[/blue]")
-    # TODO: 实现数据获取逻辑
-    console.print("[yellow]功能开发中...[/yellow]")
+    """获取数据
+
+    支持的数据类型:
+    - stock_list: 股票列表
+    - daily: 日线行情
+    - index: 指数行情
+    - basic: 每日指标
+    - calendar: 交易日历
+    - financial: 财务指标
+    """
+    _run_fetch(data_type, start_date, end_date, source)
+
+
+def _run_fetch(
+    data_type: str,
+    start_date: str | None,
+    end_date: str | None,
+    source: str,
+) -> None:
+    """执行数据获取"""
+    from quant.data.etl.cleaners import DuplicateCleaner, MissingValueCleaner
+    from quant.data.etl.pipeline import ETLPipeline
+    from quant.data.sources.tushare_client import TushareClient
+    from quant.data.storage.repository import DataRepository
+
+    async def _fetch_async():
+        # 初始化数据源和仓库
+        data_source = TushareClient()
+        repository = DataRepository()
+
+        # 创建 ETL 管道
+        pipeline = (
+            ETLPipeline()
+            .add_cleaner(DuplicateCleaner())
+            .add_cleaner(MissingValueCleaner(strategy="ffill", limit=5))
+        )
+
+        console.print(f"[blue]正在从 {source} 获取 {data_type} 数据...[/blue]")
+
+        try:
+            if data_type == "stock_list":
+                df = await data_source.get_stock_list()
+                count = await repository.upsert_stock_info(df)
+                console.print(f"[green]股票列表更新完成，插入 {count} 条记录[/green]")
+
+            elif data_type == "daily":
+                df = await data_source.get_daily_quotes(
+                    start_date=start_date, end_date=end_date
+                )
+                if not df.empty:
+                    df = pipeline.run(df)
+                count = await repository.upsert_daily_quotes(df)
+                console.print(f"[green]日线行情更新完成，插入 {count} 条记录[/green]")
+
+            elif data_type == "index":
+                df = await data_source.get_index_quotes(
+                    start_date=start_date, end_date=end_date
+                )
+                count = await repository.upsert_index_quotes(df)
+                console.print(f"[green]指数行情更新完成，插入 {count} 条记录[/green]")
+
+            elif data_type == "basic":
+                df = await data_source.get_daily_basic(
+                    start_date=start_date, end_date=end_date
+                )
+                count = await repository.upsert_daily_basic(df)
+                console.print(f"[green]每日指标更新完成，插入 {count} 条记录[/green]")
+
+            elif data_type == "calendar":
+                exchange = "SSE"
+                df = await data_source.get_trade_calendar(
+                    exchange=exchange, start_date=start_date, end_date=end_date
+                )
+                count = await repository.upsert_trade_calendar(df)
+                console.print(f"[green]交易日历更新完成，插入 {count} 条记录[/green]")
+
+            elif data_type == "financial":
+                df = await data_source.get_financial_indicator(
+                    start_date=start_date, end_date=end_date
+                )
+                count = await repository.upsert_financial_indicator(df)
+                console.print(f"[green]财务指标更新完成，插入 {count} 条记录[/green]")
+
+            else:
+                console.print(f"[red]未知数据类型: {data_type}[/red]")
+                console.print("支持的数据类型: stock_list, daily, index, basic, calendar, financial")
+
+        except Exception as e:
+            console.print(f"[red]获取数据失败: {e}[/red]")
+            raise
+
+    asyncio.run(_fetch_async())
+
+
+# ===== Scheduler 命令 =====
+
+# 日志和 PID 文件路径
+_SCHEDULER_DIR = ".quant/scheduler"
+_PID_FILE = f"{_SCHEDULER_DIR}/scheduler.pid"
+_LOG_FILE = f"{_SCHEDULER_DIR}/scheduler.log"
+_SCRIPT_FILE = f"{_SCHEDULER_DIR}/runner.py"
+
+
+def _get_scheduler_paths() -> tuple[str, str, str, str]:
+    """获取调度器相关文件路径
+
+    Returns:
+        (scheduler_dir, pid_file, log_file, script_file)
+    """
+    from pathlib import Path
+
+    # 使用项目根目录下的 .quant/scheduler
+    project_root = Path.cwd()
+    scheduler_dir = project_root / _SCHEDULER_DIR
+    scheduler_dir.mkdir(parents=True, exist_ok=True)
+
+    return (
+        str(scheduler_dir),
+        str(project_root / _PID_FILE),
+        str(project_root / _LOG_FILE),
+        str(project_root / _SCRIPT_FILE),
+    )
+
+
+@app.command()
+def scheduler(
+    action: str = typer.Argument(
+        ...,
+        help="操作: start/stop/status/run/list",
+    ),
+    job_id: str | None = typer.Option(
+        None, "--job", "-j", help="任务ID (用于 run 命令)"
+    ),
+) -> None:
+    """调度器管理
+
+    Actions:
+        start: 启动调度器
+        stop: 停止调度器
+        status: 查看调度器状态
+        run <job_id>: 手动运行指定任务
+        list: 列出所有任务
+    """
+    _run_scheduler(action, job_id)
+
+
+def _run_scheduler(action: str, job_id: str | None) -> None:
+    """执行调度器操作"""
+
+    if action == "start":
+        _scheduler_start()
+    elif action == "stop":
+        _scheduler_stop()
+    elif action == "status":
+        _scheduler_status()
+    elif action == "run":
+        if not job_id:
+            console.print("[red]请指定任务ID: --job <job_id>[/red]")
+            return
+        _scheduler_run(job_id)
+    elif action == "list":
+        _scheduler_list()
+    else:
+        console.print(f"[red]未知操作: {action}[/red]")
+        console.print("支持的操作: start, stop, status, run, list")
+
+
+def _is_process_running(pid: str) -> bool:
+    """检查进程是否在运行
+
+    Args:
+        pid: 进程 ID
+
+    Returns:
+        进程是否在运行
+    """
+    import os
+
+    if not pid:
+        return False
+
+    try:
+        # 使用 kill -0 检查进程是否存在（跨平台兼容）
+        os.kill(int(pid), 0)
+        return True
+    except (OSError, ValueError):
+        return False
+
+
+def _scheduler_start() -> None:
+    """启动调度器 (后台进程)"""
+    import os
+
+    _, pid_file, log_file, script_file = _get_scheduler_paths()
+
+    # 检查是否已运行
+    if os.path.exists(pid_file):
+        with open(pid_file) as f:
+            pid = f.read().strip()
+        if pid and _is_process_running(pid):
+            console.print(f"[yellow]调度器已在运行 (PID: {pid})[/yellow]")
+            console.print(f"日志文件: {log_file}")
+            return
+
+    console.print("[blue]启动调度器...[/blue]")
+    console.print("[yellow]提示: 调度器将在后台运行，使用 'quant scheduler stop' 停止[/yellow]")
+
+    # 创建启动脚本
+    script = f'''
+import asyncio
+import sys
+sys.path.insert(0, "{os.getcwd()}")
+
+from quant.data.storage.scheduler import DataScheduler
+from quant.data.storage.repository import DataRepository
+from quant.data.sources.tushare_client import TushareClient
+
+async def main():
+    scheduler = DataScheduler(
+        repository=DataRepository(),
+        data_source=TushareClient(),
+    )
+    scheduler.setup_default_jobs()
+    scheduler.start()
+
+    # 保持运行
+    try:
+        while scheduler.is_running:
+            await asyncio.sleep(1)
+    except KeyboardInterrupt:
+        scheduler.stop()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+'''
+
+    # 写入脚本文件
+    with open(script_file, "w") as f:
+        f.write(script)
+
+    # 后台启动
+    os.system(f"nohup python {script_file} > {log_file} 2>&1 & echo $! > {pid_file}")
+
+    with open(pid_file) as f:
+        pid = f.read().strip()
+
+    console.print(f"[green]调度器已启动 (PID: {pid})[/green]")
+    console.print(f"日志文件: {log_file}")
+
+
+def _scheduler_stop() -> None:
+    """停止调度器"""
+    import os
+
+    _, pid_file, _, _ = _get_scheduler_paths()
+
+    if not os.path.exists(pid_file):
+        console.print("[yellow]调度器未在运行[/yellow]")
+        return
+
+    with open(pid_file) as f:
+        pid = f.read().strip()
+
+    if pid:
+        os.system(f"kill {pid} 2>/dev/null")
+        os.remove(pid_file)
+        console.print(f"[green]调度器已停止 (PID: {pid})[/green]")
+    else:
+        console.print("[yellow]无法读取调度器 PID[/yellow]")
+
+
+def _scheduler_status() -> None:
+    """查看调度器状态"""
+    import os
+
+    _, pid_file, log_file, _ = _get_scheduler_paths()
+
+    if not os.path.exists(pid_file):
+        console.print("[yellow]调度器未在运行[/yellow]")
+        return
+
+    with open(pid_file) as f:
+        pid = f.read().strip()
+
+    # 检查进程是否存在
+    if pid and _is_process_running(pid):
+        console.print(f"[green]调度器运行中 (PID: {pid})[/green]")
+        console.print(f"日志文件: {log_file}")
+    else:
+        console.print("[yellow]调度器已停止 (PID 文件存在但进程不在)[/yellow]")
+        # 清理过期的 PID 文件
+        if os.path.exists(pid_file):
+            os.remove(pid_file)
+        return
+
+    # 显示日志最后几行
+    if os.path.exists(log_file):
+        console.print("\n[blue]最近日志:[/blue]")
+        os.system(f"tail -10 {log_file}")
+
+
+def _scheduler_run(job_id: str) -> None:
+    """手动运行任务"""
+    from quant.data.sources.tushare_client import TushareClient
+    from quant.data.storage.repository import DataRepository
+    from quant.data.storage.scheduler import DataScheduler
+
+    async def _run():
+        scheduler = DataScheduler(
+            repository=DataRepository(),
+            data_source=TushareClient(),
+        )
+        console.print(f"[blue]手动运行任务: {job_id}[/blue]")
+        success = await scheduler.run_job(job_id)
+        if success:
+            console.print(f"[green]任务 {job_id} 执行完成[/green]")
+        else:
+            console.print(f"[red]任务 {job_id} 执行失败或不存在[/red]")
+
+    asyncio.run(_run())
+
+
+def _scheduler_list() -> None:
+    """列出所有任务"""
+    table = Table(title="调度任务列表")
+    table.add_column("任务ID", style="cyan")
+    table.add_column("描述", style="green")
+    table.add_column("Cron 表达式", style="yellow")
+
+    jobs = [
+        ("update_daily_quotes", "每日行情更新", "0 18 * * *"),
+        ("update_daily_basic", "每日指标更新", "30 18 * * *"),
+        ("update_stock_list", "股票列表更新", "0 10 * * 6"),
+        ("update_trade_calendar", "交易日历更新", "30 10 * * 6"),
+    ]
+
+    for job_id, name, cron in jobs:
+        table.add_row(job_id, name, cron)
+
+    console.print(table)
+
+
+# ===== Init Data 命令 =====
+
+@app.command()
+def init_data(
+    years: int = typer.Option(3, "--years", "-y", help="初始化历史数据年数"),
+) -> None:
+    """初始化历史数据
+
+    获取指定年数的历史数据，包括:
+    - 股票列表
+    - 交易日历
+    - 日线行情
+    - 每日指标
+    - 指数行情
+    """
+    from quant.data.sources.tushare_client import TushareClient
+    from quant.data.storage.repository import DataRepository
+    from quant.data.storage.scheduler import DataScheduler
+
+    console.print(f"[blue]开始初始化 {years} 年历史数据...[/blue]")
+
+    async def _init():
+        scheduler = DataScheduler(
+            repository=DataRepository(),
+            data_source=TushareClient(),
+        )
+
+        with console.status("[bold green]获取数据中...[/bold green]"):
+            stats = await scheduler.init_historical_data(years=years)
+
+        # 显示结果
+        table = Table(title="初始化结果")
+        table.add_column("数据类型", style="cyan")
+        table.add_column("记录数", style="green")
+
+        for data_type, count in stats.items():
+            table.add_row(data_type, str(count))
+
+        console.print(table)
+        console.print("[green]历史数据初始化完成！[/green]")
+
+    asyncio.run(_init())
 
 
 @app.command()

@@ -66,3 +66,6 @@ data/raw/
 data/processed/
 *.h5
 *.parquet
+
+# Scheduler runtime files
+.quant/

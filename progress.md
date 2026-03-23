@@ -66,8 +66,9 @@
   - 可视化：matplotlib 3.10.8, seaborn 0.13.2, plotly 6.6.0
 
 ### 阶段 3：数据支撑模块
-- **状态：** in_progress（Phase 1-3 完成， Phase 4-5 待实现）
+- **状态：** complete
 - **开始时间：** 2026-03-22 (当前会话)
+- **完成时间：** 2026-03-23
 - 已采取的行动：
   - Brainstorming 设计讨论
   - 确定数据源策略：双源并行，交叉验证
@@ -81,6 +82,8 @@
   - **Phase 1 数据源层实现完成**（2026-03-22）
   - **Phase 2 ETL 清洗层实现完成**（2026-03-22）
   - **Phase 3 存储层实现完成**（2026-03-22）
+  - **Phase 4 CLI 扩展实现完成**（2026-03-23）
+  - scheduler 日志路径从 `/tmp/` 改为项目目录 `.quant/scheduler/`
 - 创建/修改的文件：
   - task_plan.md（更新阶段3任务清单）
   - findings.md（更新模块3设计决策和架构详情）
@@ -101,11 +104,12 @@
   - **quant/data/storage/repository.py**（数据仓库）✅
   - **quant/data/storage/scheduler.py**（数据调度器）✅
   - **quant/data/storage/__init__.py**（存储模块导出）✅
-- 待实现文件：
+  - **quant/cli.py**（CLI 扩展：fetch/scheduler/init_data 命令）✅
+- 已完成文件：
   - ~~quant/data/sources/*~~ ✅
   - ~~quant/data/etl/*~~ ✅
   - ~~quant/data/storage/*~~ ✅
-  - quant/cli.py（扩展 fetch/scheduler/init_data 命令）
+  - ~~quant/cli.py~~ ✅
 
 ### 阶段 4：策略模块
 - **状态：** pending
@@ -160,11 +164,11 @@
 ## 五问重启检查
 | 问题 | 答案 |
 |------|------|
-| 我在哪里？ | 阶段 3 Phase 3 存储层完成，待继续 Phase 4 CLI 扩展 |
-| 我要去哪里？ | 阶段 3 Phase 4-5 → 阶段 4-7：策略 → 回测 → 交易 → 集成 |
+| 我在哪里？ | 阶段 3 完成，待开始阶段 4 策略模块 |
+| 我要去哪里？ | 阶段 4-7：策略 → 回测 → 交易 → 集成 |
 | 目标是什么？ | 构建 A 股量化交易框架，支持因子研究、回测和实盘 |
-| 我学到了什么？ | 见 findings.md（数据库 Schema、配置系统、CLI 工具、包结构设计、Stage 3 架构、数据源适配、ETL 清洗层、存储层） |
-| 我做了什么？ | Stage 3 Phase 1-3 完成：数据源层 + ETL 清洗层 + 存储层（仓库/调度器） |
+| 我学到了什么？ | 见 findings.md（数据库 Schema、配置系统、CLI 工具、包结构设计、Stage 3 架构、数据源适配、ETL 清洗层、存储层、CLI 命令） |
+| 我做了什么？ | Stage 3 完成：数据源层 + ETL 清洗层 + 存储层（仓库/调度器）+ CLI 扩展 |
 
 ---
 *完成每个阶段或遇到错误后更新*

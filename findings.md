@@ -203,6 +203,58 @@ DataFrame → _bulk_insert() → records → PostgreSQL (upsert)
 query → Result → scalars().all() → DataFrame
 ```
 
+#### Stage 3 Phase 4 实现发现（CLI 扩展）
+
+**CLI 命令设计**：
+- **fetch 命令**：获取数据并存储到数据库
+  - 支持 6 种数据类型：`stock_list`, `daily`, `index`, `basic`, `calendar`, `financial`
+  - 选项：`--start`, `--end`, `--source`
+  - 自动运行 ETL 管道（去重 + 缺失值填充）
+- **scheduler 命令组**：管理定时任务
+  - `start` - 后台启动调度器
+  - `stop` - 停止调度器
+  - `status` - 查看运行状态和最近日志
+  - `run --job <id>` - 手动运行指定任务
+  - `list` - 列出所有定时任务
+- **init-data 命令**：初始化历史数据
+  - `--years` 选项指定年数
+  - 批量获取股票列表、交易日历、日线行情、每日指标、指数行情
+
+**技术实现要点**：
+1. **异步 CLI**：使用 `asyncio.run()` 包装异步函数
+2. **后台进程**：scheduler start 使用 `nohup` 后台运行
+3. **进程管理**：通过 PID 文件 (`.quant/scheduler/scheduler.pid`) 追踪调度器进程
+4. **日志存储**：日志文件存储在项目目录 `.quant/scheduler/scheduler.log`
+5. **跨平台兼容**：使用 `os.kill(pid, 0)` 检查进程状态（兼容 macOS/Linux）
+6. **Rich 输出**：使用 `console.status()` 显示进度，`Table` 展示结果
+7. **延迟导入**：CLI 命令内部导入模块，避免启动时加载所有依赖
+
+**调度器任务配置**：
+| 任务 ID | 描述 | Cron 表达式 |
+|---------|------|-------------|
+| update_daily_quotes | 每日行情更新 | 0 18 * * * |
+| update_daily_basic | 每日指标更新 | 30 18 * * * |
+| update_stock_list | 股票列表更新 | 0 10 * * 6 |
+| update_trade_calendar | 交易日历更新 | 30 10 * * 6 |
+
+**CLI 命令示例**：
+```bash
+# 获取数据
+quant fetch stock_list
+quant fetch daily -s 20230101 -e 20231231
+quant fetch calendar
+
+# 调度器管理
+quant scheduler list
+quant scheduler start
+quant scheduler status
+quant scheduler run --job update_daily_quotes
+quant scheduler stop
+
+# 初始化历史数据
+quant init-data --years 3
+```
+
 ### 模块4：回测
 - 因子回测（单因子 IC/IR 分析）
 - 策略回测（组合收益/风险）
