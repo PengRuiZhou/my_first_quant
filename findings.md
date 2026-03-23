@@ -255,6 +255,46 @@ quant scheduler stop
 quant init-data --years 3
 ```
 
+#### Stage 3 Phase 5 实现发现（测试）
+
+**测试架构设计**：
+- **测试目录**：`tests/data/`
+- **测试文件**：
+  - `test_etl.py` - ETL 清洗器测试（~50 测试用例）
+  - `test_sources.py` - 数据源测试 with mocks（~35 测试用例）
+  - `test_repository.py` - 数据仓库 CRUD 测试（~25 测试用例）
+  - `test_scheduler.py` - 调度器任务管理测试（~20 测试用例）
+  - `test_integration.py` - 完整管道工作流测试（~15 测试用例）
+
+**测试技术要点**：
+1. **Mock 策略**：使用 `unittest.mock.AsyncMock` 模拟异步数据源和数据库操作
+2. **Fixtures 设计**：按功能分组（sample_quotes, sample_stock_info, mock_session 等）
+3. **异步测试**：使用 `pytest-asyncio` 的 `@pytest.mark.asyncio` 装饰器
+4. **边缘情况覆盖**：空输入、单行数据、全 NaN 列、混合数据类型
+5. **性能测试**：大数据集管道处理（10000 行）
+6. **数据质量验证**：去重检查、价格约束（high >= low）、成交量非负
+
+**测试结果**：
+```
+135 passed, 5 skipped, 8 warnings in 0.60s
+```
+
+**跳过的测试**：
+- 需要 `asyncpg` 模块的数据库连接测试（CI 环境中验证）
+- 需要运行中事件循环的调度器启动/停止测试（集成测试中验证）
+
+**测试覆盖范围**：
+| 模块 | 测试重点 |
+|------|----------|
+| ETL Cleaners | 缺失值填充策略、去重逻辑、异常值检测方法 |
+| Price Adjuster | 前复权/后复权计算、涨跌幅重算 |
+| Stock Status Filter | ST/停牌/退市识别、白名单/黑名单过滤 |
+| ETL Pipeline | 链式调用、统计信息、管道工厂函数 |
+| Data Validator | 双源交叉验证、数值/字符串字段合并、异常报告 |
+| Data Repository | CRUD 操作、批量插入、NaN 处理 |
+| Data Scheduler | 任务添加/移除/暂停/恢复、默认任务配置 |
+| Integration | 完整工作流、数据一致性、边缘情况 |
+
 ### 模块4：回测
 - 因子回测（单因子 IC/IR 分析）
 - 策略回测（组合收益/风险）

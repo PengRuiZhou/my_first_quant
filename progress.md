@@ -68,7 +68,7 @@
 ### 阶段 3：数据支撑模块
 - **状态：** complete
 - **开始时间：** 2026-03-22 (当前会话)
-- **完成时间：** 2026-03-23
+- **完成时间：** 2026-03-24
 - 已采取的行动：
   - Brainstorming 设计讨论
   - 确定数据源策略：双源并行，交叉验证
@@ -83,6 +83,7 @@
   - **Phase 2 ETL 清洗层实现完成**（2026-03-22）
   - **Phase 3 存储层实现完成**（2026-03-22）
   - **Phase 4 CLI 扩展实现完成**（2026-03-23）
+  - **Phase 5 单元测试和集成测试完成**（2026-03-24）
   - scheduler 日志路径从 `/tmp/` 改为项目目录 `.quant/scheduler/`
 - 创建/修改的文件：
   - task_plan.md（更新阶段3任务清单）
@@ -105,11 +106,21 @@
   - **quant/data/storage/scheduler.py**（数据调度器）✅
   - **quant/data/storage/__init__.py**（存储模块导出）✅
   - **quant/cli.py**（CLI 扩展：fetch/scheduler/init_data 命令）✅
+  - **tests/data/__init__.py**（测试包）✅
+  - **tests/data/test_etl.py**（ETL 清洗器测试）✅
+  - **tests/data/test_sources.py**（数据源测试 with mocks）✅
+  - **tests/data/test_repository.py**（数据仓库测试）✅
+  - **tests/data/test_scheduler.py**（调度器测试）✅
+  - **tests/data/test_integration.py**（集成测试）✅
+- 测试结果：
+  - **135 passed, 5 skipped, 8 warnings in 0.60s**
+  - 测试覆盖：ETL 清洗器、数据源、数据仓库、调度器、集成流程
 - 已完成文件：
   - ~~quant/data/sources/*~~ ✅
   - ~~quant/data/etl/*~~ ✅
   - ~~quant/data/storage/*~~ ✅
   - ~~quant/cli.py~~ ✅
+  - ~~tests/data/*~~ ✅
 
 ### 阶段 4：策略模块
 - **状态：** pending
@@ -164,11 +175,11 @@
 ## 五问重启检查
 | 问题 | 答案 |
 |------|------|
-| 我在哪里？ | 阶段 3 完成，待开始阶段 4 策略模块 |
+| 我在哪里？ | 阶段 3 完成（含测试），待开始阶段 4 策略模块 |
 | 我要去哪里？ | 阶段 4-7：策略 → 回测 → 交易 → 集成 |
 | 目标是什么？ | 构建 A 股量化交易框架，支持因子研究、回测和实盘 |
-| 我学到了什么？ | 见 findings.md（数据库 Schema、配置系统、CLI 工具、包结构设计、Stage 3 架构、数据源适配、ETL 清洗层、存储层、CLI 命令） |
-| 我做了什么？ | Stage 3 完成：数据源层 + ETL 清洗层 + 存储层（仓库/调度器）+ CLI 扩展 |
+| 我学到了什么？ | 见 findings.md（数据库 Schema、配置系统、CLI 工具、包结构设计、Stage 3 架构、数据源适配、ETL 清洗层、存储层、CLI 命令、测试策略） |
+| 我做了什么？ | Stage 3 完成：数据源层 + ETL 清洗层 + 存储层（仓库/调度器）+ CLI 扩展 + 单元测试 + 集成测试（135 测试用例通过） |
 
 ---
 *完成每个阶段或遇到错误后更新*

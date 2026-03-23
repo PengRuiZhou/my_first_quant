@@ -6,7 +6,7 @@
 
 ## 当前阶段
 
-阶段 1（完成）→ 阶段 2（完成）→ 阶段 3（进行中）
+阶段 1（完成）→ 阶段 2（完成）→ 阶段 3（完成）→ 阶段 4（待开始）
 
 ## 项目规格
 
@@ -112,11 +112,14 @@
 - [x] 数据仓库模式 (storage/repository.py)
 - [x] APScheduler 调度 (storage/scheduler.py)
 - [x] CLI 命令扩展 (fetch/scheduler/init_data)
+- [x] 单元测试 (tests/data/test_etl.py, test_sources.py, test_repository.py, test_scheduler.py)
+- [x] 集成测试 (tests/data/test_integration.py)
 - **设计文档：** [2026-03-22-data-module-design.md](docs/superpowers/specs/2026-03-22-data-module-design.md)
 - **实现计划：** [2026-03-22-stage3-implementation.md](docs/superpowers/plans/2026-03-22-stage3-implementation.md)
 - **架构方案：** 分层架构（数据源/清洗/存储/调度各层分离）
 - **数据源策略：** 双源并行，交叉验证
 - **初始数据：** 股票列表/指数行情/股票日线/每日指标/交易日历/财务指标
+- **测试覆盖：** 135 个测试用例通过
 - **状态：** complete
 
 ### 阶段 4：策略模块
