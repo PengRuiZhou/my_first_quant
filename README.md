@@ -4,10 +4,22 @@ A股量化交易框架，支持因子研究、策略回测和实盘交易。
 
 ## 特性
 
-- **数据支撑**：Tushare/AKShare 数据源，PostgreSQL 存储
+- **数据支撑** ✅：Tushare/AKShare 数据源，PostgreSQL 存储，ETL 清洗，定时调度
 - **策略模块**：Verses 因子库 → Lanetech 模型 → Alpha → 优化器
 - **回测系统**：因子/策略回测，IC/Sharpe/回撤等指标
 - **交易执行**：订单管理、券商接口、风控
+
+## 开发进度
+
+| 阶段 | 模块 | 状态 |
+|------|------|------|
+| Stage 1 | 需求与探索 | ✅ 完成 |
+| Stage 2 | 项目骨架搭建 | ✅ 完成 |
+| Stage 3 | 数据支撑模块 | ✅ 完成 |
+| Stage 4 | 策略模块 | 🚧 待开发 |
+| Stage 5 | 回测模块 | 📋 计划中 |
+| Stage 6 | 交易模块 | 📋 计划中 |
+| Stage 7 | 集成与测试 | 📋 计划中 |
 
 ## 环境信息
 
@@ -79,9 +91,10 @@ quant db create
 ```
 my_first_quant/              # 项目根目录
 ├── quant/                   # Python 包
-│   ├── data/                # 数据支撑模块
-│   │   ├── sources/         # 数据源适配器
-│   │   ├── etl/             # 数据清洗
+│   ├── data/                # 数据支撑模块 ✅
+│   │   ├── sources/         # 数据源适配器（Tushare/AKShare）
+│   │   ├── etl/             # 数据清洗 ETL Pipeline
+│   │   ├── storage/         # 存储层（Repository + Scheduler）
 │   │   └── models/          # 数据库模型
 │   ├── strategy/            # 策略模块
 │   │   ├── verses/          # 因子库
@@ -95,41 +108,101 @@ my_first_quant/              # 项目根目录
 │   │   ├── orders/          # 订单管理
 │   │   ├── brokers/         # 券商接口
 │   │   └── risk/            # 风控
-│   ├── core/                # 核心工具
+│   ├── core/                # 核心工具 ✅
 │   │   ├── config.py        # 配置管理
 │   │   └── logging.py       # 日志配置
-│   └── cli.py               # 命令行接口
+│   └── cli.py               # 命令行接口 ✅
+├── .quant/                  # 运行时文件（gitignore）
+│   └── scheduler/           # 调度器运行时文件
+│       ├── scheduler.pid    # 进程 ID
+│       ├── scheduler.log    # 日志文件
+│       └── runner.py        # 运行脚本
 ├── tests/                   # 测试
+├── docs/                    # 文档
+│   └── superpowers/         # 设计文档和实现计划
 ├── pyproject.toml           # 依赖管理
 └── README.md
 ```
 
 ## 使用示例
 
+### 数据获取
+
+```bash
+# 获取股票列表
+quant fetch stock_list
+
+# 获取指定日期范围的日线数据
+quant fetch daily -s 20230101 -e 20231231
+
+# 初始化3年历史数据（首次使用）
+quant init-data --years 3
+```
+
+### Python API
+
 ```python
-from quant.core import get_settings, setup_logging
-from quant.data.models import StockInfo, DailyQuote, get_engine
-from sqlalchemy.orm import Session
+import asyncio
+from quant.data.sources.tushare_client import TushareClient
+from quant.data.storage.repository import DataRepository
+from quant.data.etl.pipeline import create_minimal_pipeline
 
-# 初始化
-setup_logging()
-settings = get_settings()
+async def main():
+    # 初始化
+    client = TushareClient()
+    repo = DataRepository()
 
-# 使用数据库
-engine = get_engine(settings.db.url)
-with Session(engine) as session:
-    stocks = session.query(StockInfo).limit(10).all()
-    for stock in stocks:
-        print(stock.ts_code, stock.name)
+    # 获取股票列表
+    stocks = await client.get_stock_list()
+    print(f"获取到 {len(stocks)} 只股票")
+
+    # 获取日线行情
+    quotes = await client.get_daily_quotes(
+        start_date="20230101",
+        end_date="20231231"
+    )
+
+    # ETL 清洗
+    pipeline = create_minimal_pipeline()
+    clean_quotes = pipeline.run(quotes)
+
+    # 存储到数据库
+    count = await repo.upsert_daily_quotes(clean_quotes)
+    print(f"插入 {count} 条记录")
+
+asyncio.run(main())
 ```
 
 ## 命令行工具
 
 ```bash
+# 基础命令
 quant version              # 显示版本
 quant init                 # 初始化配置
 quant db create            # 创建数据库表
-quant fetch tushare daily  # 获取日线数据
+quant db drop              # 删除数据库表
+
+# 数据获取
+quant fetch stock_list     # 获取股票列表
+quant fetch daily          # 获取日线数据
+quant fetch index          # 获取指数行情
+quant fetch basic          # 获取每日指标
+quant fetch calendar       # 获取交易日历
+quant fetch financial      # 获取财务指标
+quant fetch daily -s 20230101 -e 20231231  # 指定日期范围
+
+# 调度器管理
+quant scheduler list       # 列出所有定时任务
+quant scheduler start      # 启动调度器（后台运行）
+quant scheduler status     # 查看运行状态和最近日志
+quant scheduler run -j update_daily_quotes  # 手动运行任务
+quant scheduler stop       # 停止调度器
+# 日志文件位于: .quant/scheduler/scheduler.log
+
+# 初始化历史数据
+quant init-data --years 3  # 初始化3年历史数据
+
+# 回测
 quant backtest my_strategy # 运行回测
 ```
 

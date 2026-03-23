@@ -9,6 +9,13 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 
+def pytest_configure(config):
+    """配置 pytest-asyncio"""
+    config.addinivalue_line(
+        "markers", "asyncio: mark test as an asyncio test"
+    )
+
+
 @pytest.fixture(scope="session")
 def test_settings():
     """测试用配置"""

@@ -166,6 +166,135 @@ AKShare ──┘                         │
 - `create_minimal_pipeline()`: 仅去重 + 缺失值填充
 - `create_strict_pipeline()`: 去重 + 删除缺失值 + 删除异常值 + 严格过滤
 
+#### Stage 3 Phase 3 实现发现（存储层）
+
+**DataRepository 设计**：
+- **异步 ORM**：使用 SQLAlchemy 2.0 async (asyncpg 驱动)
+- **批量插入**：PostgreSQL `INSERT ... ON CONFLICT DO UPDATE` 实现 upsert
+- **数据类型方法**：
+  - `get_stock_list()`, `upsert_stock_info()`
+  - `get_daily_quotes()`, `upsert_daily_quotes()`
+  - `get_index_quotes()`, `upsert_index_quotes()`
+  - `get_trade_dates()`, `get_latest_trade_date()`, `upsert_trade_calendar()`
+  - `get_daily_basic()`, `upsert_daily_basic()`
+  - `get_financial_indicator()`, `upsert_financial_indicator()`
+  - `get_daily_quote_count()`, `get_stock_count()`
+
+**DataScheduler 设计**：
+- **调度器**：APScheduler AsyncIOScheduler
+- **默认定时任务**：
+  - 每日 18:00 更新日线行情
+  - 每日 18:30 更新每日指标
+  - 每周六 10:00 更新股票列表
+  - 每周六 10:30 更新交易日历
+- **手动触发**：`run_job(job_id)` 支持手动运行任务
+- **历史初始化**：`init_historical_data(years)` 批量获取历史数据
+
+**技术实现要点**：
+1. **PostgreSQL Upsert**：使用 `insert().on_conflict_do_update()` 处理重复数据
+2. **NaN 处理**：DataFrame 转 dict 时，将 `pd.NA`/`np.nan` 转为 `None`
+3. **Pylance 类型问题**：`result.rowcount` 需用 `getattr(result, "rowcount", 0)` 访问
+4. **会话管理**：使用 `async_sessionmaker` 创建异步会话，`expire_on_commit=False` 避免延迟加载问题
+
+**存储层数据流**：
+```
+DataFrame → _bulk_insert() → records → PostgreSQL (upsert)
+                                                    ↓
+query → Result → scalars().all() → DataFrame
+```
+
+#### Stage 3 Phase 4 实现发现（CLI 扩展）
+
+**CLI 命令设计**：
+- **fetch 命令**：获取数据并存储到数据库
+  - 支持 6 种数据类型：`stock_list`, `daily`, `index`, `basic`, `calendar`, `financial`
+  - 选项：`--start`, `--end`, `--source`
+  - 自动运行 ETL 管道（去重 + 缺失值填充）
+- **scheduler 命令组**：管理定时任务
+  - `start` - 后台启动调度器
+  - `stop` - 停止调度器
+  - `status` - 查看运行状态和最近日志
+  - `run --job <id>` - 手动运行指定任务
+  - `list` - 列出所有定时任务
+- **init-data 命令**：初始化历史数据
+  - `--years` 选项指定年数
+  - 批量获取股票列表、交易日历、日线行情、每日指标、指数行情
+
+**技术实现要点**：
+1. **异步 CLI**：使用 `asyncio.run()` 包装异步函数
+2. **后台进程**：scheduler start 使用 `nohup` 后台运行
+3. **进程管理**：通过 PID 文件 (`.quant/scheduler/scheduler.pid`) 追踪调度器进程
+4. **日志存储**：日志文件存储在项目目录 `.quant/scheduler/scheduler.log`
+5. **跨平台兼容**：使用 `os.kill(pid, 0)` 检查进程状态（兼容 macOS/Linux）
+6. **Rich 输出**：使用 `console.status()` 显示进度，`Table` 展示结果
+7. **延迟导入**：CLI 命令内部导入模块，避免启动时加载所有依赖
+
+**调度器任务配置**：
+| 任务 ID | 描述 | Cron 表达式 |
+|---------|------|-------------|
+| update_daily_quotes | 每日行情更新 | 0 18 * * * |
+| update_daily_basic | 每日指标更新 | 30 18 * * * |
+| update_stock_list | 股票列表更新 | 0 10 * * 6 |
+| update_trade_calendar | 交易日历更新 | 30 10 * * 6 |
+
+**CLI 命令示例**：
+```bash
+# 获取数据
+quant fetch stock_list
+quant fetch daily -s 20230101 -e 20231231
+quant fetch calendar
+
+# 调度器管理
+quant scheduler list
+quant scheduler start
+quant scheduler status
+quant scheduler run --job update_daily_quotes
+quant scheduler stop
+
+# 初始化历史数据
+quant init-data --years 3
+```
+
+#### Stage 3 Phase 5 实现发现（测试）
+
+**测试架构设计**：
+- **测试目录**：`tests/data/`
+- **测试文件**：
+  - `test_etl.py` - ETL 清洗器测试（~50 测试用例）
+  - `test_sources.py` - 数据源测试 with mocks（~35 测试用例）
+  - `test_repository.py` - 数据仓库 CRUD 测试（~25 测试用例）
+  - `test_scheduler.py` - 调度器任务管理测试（~20 测试用例）
+  - `test_integration.py` - 完整管道工作流测试（~15 测试用例）
+
+**测试技术要点**：
+1. **Mock 策略**：使用 `unittest.mock.AsyncMock` 模拟异步数据源和数据库操作
+2. **Fixtures 设计**：按功能分组（sample_quotes, sample_stock_info, mock_session 等）
+3. **异步测试**：使用 `pytest-asyncio` 的 `@pytest.mark.asyncio` 装饰器
+4. **边缘情况覆盖**：空输入、单行数据、全 NaN 列、混合数据类型
+5. **性能测试**：大数据集管道处理（10000 行）
+6. **数据质量验证**：去重检查、价格约束（high >= low）、成交量非负
+
+**测试结果**：
+```
+135 passed, 5 skipped, 8 warnings in 0.60s
+```
+
+**跳过的测试**：
+- 需要 `asyncpg` 模块的数据库连接测试（CI 环境中验证）
+- 需要运行中事件循环的调度器启动/停止测试（集成测试中验证）
+
+**测试覆盖范围**：
+| 模块 | 测试重点 |
+|------|----------|
+| ETL Cleaners | 缺失值填充策略、去重逻辑、异常值检测方法 |
+| Price Adjuster | 前复权/后复权计算、涨跌幅重算 |
+| Stock Status Filter | ST/停牌/退市识别、白名单/黑名单过滤 |
+| ETL Pipeline | 链式调用、统计信息、管道工厂函数 |
+| Data Validator | 双源交叉验证、数值/字符串字段合并、异常报告 |
+| Data Repository | CRUD 操作、批量插入、NaN 处理 |
+| Data Scheduler | 任务添加/移除/暂停/恢复、默认任务配置 |
+| Integration | 完整工作流、数据一致性、边缘情况 |
+
 ### 模块4：回测
 - 因子回测（单因子 IC/IR 分析）
 - 策略回测（组合收益/风险）
