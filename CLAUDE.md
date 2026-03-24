@@ -32,7 +32,7 @@ A股量化交易框架，包含四大模块：
 | **数据源** | tushare | 1.4.25 | A股数据 API |
 | | akshare | 1.18.43 | A股数据 API（备用） |
 | **数据库** | sqlalchemy | 2.0.48 | ORM（async） |
-| | asyncpg | 0.29.0 | 异步 PostgreSQL 驱动 |
+| | asyncpg | 0.31.0 | 异步 PostgreSQL 驱动 |
 | | psycopg2 | 2.9.9 | PostgreSQL 同步驱动 |
 | **配置/日志** | pydantic-settings | 2.8.0 | 配置管理 |
 | | loguru | 0.7.2 | 日志 |
@@ -59,9 +59,10 @@ A股量化交易框架，包含四大模块：
 | **数据源层** | ✅ 完成 | `quant/data/sources/` - Tushare/AKShare 适配器 + 交叉验证 |
 | **ETL 清洗层** | ✅ 完成 | `quant/data/etl/` - 缺失值/异常值/复权/状态过滤/管道 |
 | **存储层** | ✅ 完成 | `quant/data/storage/` - DataRepository + DataScheduler |
-| **数据模型** | ✅ 完成 | `quant/data/models/` - 10 个 SQLAlchemy 模型 |
-| **配置系统** | ✅ 完成 | `quant/core/config.py` - pydantic-settings |
-| **CLI 工具** | ✅ 完成 | `quant/cli.py` - typer + rich (fetch/scheduler/init-data) |
+| **数据模型** | ✅ 完成 | `quant/data/models/` - 11 个 SQLAlchemy 模型 |
+| **配置系统** | ✅ 完成 | `quant/core/config.py` - pydantic-settings + URL 编码 |
+| **CLI 工具** | ✅ 完成 | `quant/cli/` - typer + rich (fetch/scheduler/init-data) |
+| **开发环境** | ✅ 完成 | PostgreSQL 15 + asyncpg + .env 配置 |
 
 ## Core Concepts
 

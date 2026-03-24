@@ -5,6 +5,7 @@
 
 from functools import lru_cache
 from typing import Literal
+from urllib.parse import quote_plus
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -13,7 +14,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class DatabaseConfig(BaseSettings):
     """数据库配置"""
 
-    model_config = SettingsConfigDict(env_prefix="DB_")
+    model_config = SettingsConfigDict(
+        env_prefix="DB_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     host: str = Field(default="localhost", description="数据库主机")
     port: int = Field(default=5432, description="数据库端口")
@@ -24,18 +30,25 @@ class DatabaseConfig(BaseSettings):
     @property
     def url(self) -> str:
         """获取数据库连接 URL"""
-        return f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
+        encoded_password = quote_plus(self.password)
+        return f"postgresql://{self.user}:{encoded_password}@{self.host}:{self.port}/{self.database}"
 
     @property
     def async_url(self) -> str:
         """获取异步数据库连接 URL"""
-        return f"postgresql+asyncpg://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
+        encoded_password = quote_plus(self.password)
+        return f"postgresql+asyncpg://{self.user}:{encoded_password}@{self.host}:{self.port}/{self.database}"
 
 
 class TushareConfig(BaseSettings):
     """Tushare 数据源配置"""
 
-    model_config = SettingsConfigDict(env_prefix="TUSHARE_")
+    model_config = SettingsConfigDict(
+        env_prefix="TUSHARE_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     token: str = Field(default="", description="Tushare API Token")
     api_url: str = Field(

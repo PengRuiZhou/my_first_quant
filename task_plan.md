@@ -138,6 +138,18 @@
 - **实现计划：** [2026-03-25-cli-refactor-implementation.md](docs/superpowers/plans/2026-03-25-cli-refactor-implementation.md)
 - **状态：** complete
 
+### 阶段 3.2：开发环境配置 ✅
+- [x] 创建 `.env` 配置文件
+- [x] 安装 PostgreSQL 15 (Homebrew)
+- [x] 创建 `quant` 数据库
+- [x] 设置数据库用户密码
+- [x] 安装 `asyncpg` 依赖
+- [x] 修复 pydantic-settings 嵌套模型环境变量加载问题
+- [x] 修复数据库密码 URL 编码问题（`@` 符号）
+- [x] 创建数据库表（11 个表）
+- [ ] 配置 Tushare API Token（用户待完成）
+- **状态：** complete（Tushare Token 待用户注册后配置）
+
 ### 阶段 4：策略模块
 - [ ] Verses 因子库
   - [ ] 基础操作符（rank, quantile, zscore）

@@ -171,6 +171,8 @@
 | 2026-03-22 Stage3 | Pylance: `self._report` 可能为 None | 1 | validator.py: 添加 `if self._report is not None` 检查 |
 | 2026-03-22 Stage3 Phase2 | ImportError: `get_logger` not found | 1 | pipeline.py: 改用 `from loguru import logger` 直接导入 |
 | 2026-03-22 Stage3 Phase3 | Pylance: `result.rowcount` 属性不存在 | 1 | repository.py: 使用 `getattr(result, "rowcount", 0) or 0` 避免 Pylance 类型错误 |
+| 2026-03-25 Stage3.2 | pydantic-settings 嵌套模型不加载 .env | 2 | 在 DatabaseConfig/TushareConfig 中添加 `env_file=".env"` 配置 |
+| 2026-03-25 Stage3.2 | 数据库密码 `@` 符号破坏 URL 解析 | 1 | 使用 `urllib.parse.quote_plus()` 对密码进行 URL 编码 |
 
 ### 阶段 3.1：CLI 模块化重构
 - **状态：** complete
@@ -211,14 +213,38 @@
   - 135 个测试用例通过 ✅
   - black + ruff 检查通过 ✅
 
+### 阶段 3.2：开发环境配置
+- **状态：** complete
+- **开始时间：** 2026-03-25
+- **完成时间：** 2026-03-25
+- 已采取的行动：
+  - 创建 `.env` 配置文件（`quant init`）
+  - 安装 PostgreSQL 15 via Homebrew
+  - 启动 PostgreSQL 服务（`brew services start postgresql@15`）
+  - 创建 `quant` 数据库（`createdb quant`）
+  - 设置数据库用户密码
+  - 安装 `asyncpg` 异步 PostgreSQL 驱动
+  - **修复 pydantic-settings 嵌套模型加载问题**（在 DatabaseConfig/TushareConfig 中添加 `env_file` 配置）
+  - **修复数据库密码 URL 编码问题**（使用 `urllib.parse.quote_plus` 编码密码中的特殊字符）
+  - 创建数据库表（`quant db create`，11 个表）
+- 创建/修改的文件：
+  - `.env` - 创建并配置
+  - `quant/core/config.py` - 修复嵌套模型加载 + URL 编码
+- 数据库表创建成功：
+  - stock_info, stock_industry, index_info, daily_quote
+  - index_daily_quote, trade_calendar, financial_indicator
+  - daily_basic, factor_definition, factor_data, factor_statistics
+- 待完成：
+  - 用户注册 Tushare 并配置 Token（访问 https://tushare.pro/register）
+
 ## 五问重启检查
 | 问题 | 答案 |
 |------|------|
-| 我在哪里？ | 阶段 3 完成，阶段 3.1 CLI 模块化重构完成 |
+| 我在哪里？ | 阶段 3.2 环境配置完成，数据库表已创建，待配置 Tushare Token |
 | 我要去哪里？ | 阶段 4：策略模块（Verses 因子库 → Lanetech 模型 → Alpha → 优化器） |
 | 目标是什么？ | 构建 A 股量化交易框架，支持因子研究、回测和实盘 |
-| 我学到了什么？ | 见 findings.md（数据库 Schema、配置系统、CLI 工具、包结构设计、Stage 3 架构、数据源适配、ETL 清洗层、存储层、CLI 命令、测试策略、CLI 模块化重构实现） |
-| 我做了什么？ | Stage 3 完成 + CLI 重构完成（8 模块，10 提交，135 测试通过） |
+| 我学到了什么？ | 见 findings.md（pydantic-settings 嵌套模型加载、URL 编码、PostgreSQL 安装配置） |
+| 我做了什么？ | Stage 3.2 完成（PostgreSQL 安装 + 数据库创建 + asyncpg 安装 + 表创建 + 2 个 bug 修复） |
 
 ---
 *完成每个阶段或遇到错误后更新*
