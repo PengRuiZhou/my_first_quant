@@ -15,7 +15,8 @@
 
 ```
 quant/cli/
-├── __init__.py      # 主入口，注册所有命令，导出 console
+├── __init__.py      # 主入口，注册所有命令
+├── console.py       # 共享 Console 对象（避免循环导入）
 ├── fetch.py         # fetch 命令（数据获取）
 ├── scheduler.py     # scheduler 命令（调度器管理）
 ├── db.py            # db 命令（数据库操作）
@@ -24,17 +25,28 @@ quant/cli/
 └── version.py       # version/init 命令（版本和初始化）
 ```
 
+> **注意**：将 `console` 放在单独的 `console.py` 中是为了避免循环导入。子模块从 `quant.cli.console` 导入时，不会触发 `__init__.py` 的完整加载。
+
 ## 模块设计
 
-### 1. `__init__.py` - 主入口
+### 1. `console.py` - 共享 Console 对象
+
+```python
+"""共享 Console 对象"""
+from rich.console import Console
+
+console = Console()
+```
+
+> **设计说明**：将 `console` 放在单独文件中是为了避免循环导入。子模块导入 `from quant.cli.console import console` 时不会触发 `__init__.py` 的加载。
+
+### 2. `__init__.py` - 主入口
 
 ```python
 """CLI 主入口"""
-from rich.console import Console
 import typer
 
-# 共享 console 对象
-console = Console()
+from quant.cli import fetch, scheduler, db, init_data, backtest, version
 
 # 主应用
 app = typer.Typer(
@@ -43,9 +55,7 @@ app = typer.Typer(
     add_completion=False,
 )
 
-# 导入并注册子命令
-from quant.cli import fetch, scheduler, db, init_data, backtest, version
-
+# 注册命令（使用 name= 参数处理命令名与函数名不一致的情况）
 app.command()(version.version)
 app.command()(version.init)
 app.command()(db.db)
@@ -62,7 +72,7 @@ if __name__ == "__main__":
     main()
 ```
 
-### 2. `fetch.py` - 数据获取命令
+### 3. `fetch.py` - 数据获取命令
 
 提取内容：
 - `fetch()` 命令函数
@@ -71,7 +81,7 @@ if __name__ == "__main__":
 ```python
 """数据获取命令"""
 from typer import Argument, Option
-from quant.cli import console
+from quant.cli.console import console
 
 def fetch(
     data_type: str = Argument(..., help="数据类型"),
@@ -86,6 +96,8 @@ def _run_fetch(...) -> None:
     """执行数据获取逻辑"""
     # 从原 cli.py 迁移
 ```
+
+> **导入说明**：所有子模块从 `quant.cli.console` 导入 `console`，而不是 `quant.cli`。
 
 ### 3. `scheduler.py` - 调度器管理命令
 
@@ -134,11 +146,14 @@ def _run_fetch(...) -> None:
 
 ### `console` 对象
 
-所有模块共享同一个 `Console` 实例，从 `quant.cli` 导入：
+所有模块共享同一个 `Console` 实例。为了避免循环导入，`console` 定义在单独的 `console.py` 文件中：
 
 ```python
-from quant.cli import console
+# 在子模块中导入
+from quant.cli.console import console
 ```
+
+> **重要**：不要从 `quant.cli` 或 `quant.cli.__init__` 导入 `console`，这会导致循环导入。
 
 ## 入口点兼容性
 
@@ -149,13 +164,36 @@ from quant.cli import console
 quant = "quant.cli:main"
 ```
 
+Python 包的 `__init__.py` 会自动被解析，`quant.cli:main` 将指向 `quant/cli/__init__.py:main`。
+
 ## 迁移步骤
 
-1. 创建 `quant/cli/` 目录
-2. 创建各子模块文件，迁移对应代码
-3. 创建 `__init__.py`，注册所有命令
-4. 删除原 `quant/cli.py`（或保留为兼容层）
-5. 运行测试验证
+1. **创建目录**：创建 `quant/cli/` 目录
+2. **创建 console.py**：提取共享的 `Console` 对象
+3. **创建子模块**：迁移各命令代码到对应文件
+   - `version.py` (~20 行)
+   - `db.py` (~20 行)
+   - `fetch.py` (~80 行)
+   - `scheduler.py` (~200 行)
+   - `init_data.py` (~30 行)
+   - `backtest.py` (~10 行，占位)
+4. **创建 __init__.py**：注册所有命令
+5. **删除旧文件**：**必须删除** `quant/cli.py`，否则 Python 会优先导入文件而非包
+6. **验证**：运行验证命令
+
+### 验证命令
+
+```bash
+# 验证 CLI 正常工作
+quant --help
+quant version
+
+# 运行测试
+pytest
+
+# 代码风格检查
+black . && ruff check .
+```
 
 ## 风险与缓解
 
