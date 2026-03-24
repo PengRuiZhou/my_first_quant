@@ -106,7 +106,13 @@ my_first_quant/              # 项目根目录
 │   ├── core/                # 核心工具
 │   │   ├── config.py        # 配置管理（pydantic-settings）
 │   │   └── logging.py       # 日志配置（loguru）
-│   └── cli.py               # 命令行接口（typer）
+│   └── cli/                 # 命令行接口（typer）
+│       ├── __init__.py      # 主入口，注册所有命令
+│       ├── fetch.py         # fetch 命令（数据获取）
+│       ├── scheduler.py     # scheduler 命令（调度器管理）
+│       ├── db.py            # db 命令（数据库操作）
+│       ├── init_data.py     # init-data 命令
+│       └── backtest.py      # backtest 命令（待实现）
 ├── tests/                   # 测试
 ├── docs/                    # 文档
 │   └── superpowers/specs/   # 设计文档
@@ -196,5 +202,6 @@ quant backtest <strategy>  # 运行回测
 - [progress.md](progress.md) - 进度日志
 - [docs/superpowers/specs/](docs/superpowers/specs/) - 设计文档目录
   - [2026-03-22-data-module-design.md](docs/superpowers/specs/2026-03-22-data-module-design.md) - Stage 3 数据模块设计
+  - [2026-03-25-cli-refactor-design.md](docs/superpowers/specs/2026-03-25-cli-refactor-design.md) - CLI 模块化重构设计
 - [docs/superpowers/plans/](docs/superpowers/plans/) - 实现计划目录
   - [2026-03-22-stage3-implementation.md](docs/superpowers/plans/2026-03-22-stage3-implementation.md) - Stage 3 实现计划

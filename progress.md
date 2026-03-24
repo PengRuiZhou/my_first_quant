@@ -172,14 +172,33 @@
 | 2026-03-22 Stage3 Phase2 | ImportError: `get_logger` not found | 1 | pipeline.py: 改用 `from loguru import logger` 直接导入 |
 | 2026-03-22 Stage3 Phase3 | Pylance: `result.rowcount` 属性不存在 | 1 | repository.py: 使用 `getattr(result, "rowcount", 0) or 0` 避免 Pylance 类型错误 |
 
+### 阶段 3.1：CLI 模块化重构
+- **状态：** design_complete
+- **开始时间：** 2026-03-25
+- 已采取的行动：
+  - 分析现有 CLI 结构（493 行代码）
+  - 识别可提取的较大函数（fetch, scheduler, init_data 等）
+  - 设计模块化目录结构（quant/cli/）
+  - 编写设计文档 `docs/superpowers/specs/2026-03-25-cli-refactor-design.md`
+- 创建/修改的文件：
+  - docs/superpowers/specs/2026-03-25-cli-refactor-design.md（设计文档）
+  - CLAUDE.md（更新模块结构）
+  - findings.md（添加 CLI 模块化决策）
+  - task_plan.md（添加阶段 3.1 任务）
+  - progress.md（更新进度）
+- 设计决策：
+  - 按命令拆分模块：fetch.py, scheduler.py, db.py, init_data.py, backtest.py
+  - 共享 console 对象在 `quant.cli` 模块
+  - 保持入口点兼容：`quant = "quant.cli:main"`
+
 ## 五问重启检查
 | 问题 | 答案 |
 |------|------|
-| 我在哪里？ | 阶段 3 完成（含测试），待开始阶段 4 策略模块 |
-| 我要去哪里？ | 阶段 4-7：策略 → 回测 → 交易 → 集成 |
+| 我在哪里？ | 阶段 3 完成，阶段 3.1 CLI 重构设计完成，待实现 |
+| 我要去哪里？ | 阶段 3.1 实现 → 阶段 4-7：策略 → 回测 → 交易 → 集成 |
 | 目标是什么？ | 构建 A 股量化交易框架，支持因子研究、回测和实盘 |
-| 我学到了什么？ | 见 findings.md（数据库 Schema、配置系统、CLI 工具、包结构设计、Stage 3 架构、数据源适配、ETL 清洗层、存储层、CLI 命令、测试策略） |
-| 我做了什么？ | Stage 3 完成：数据源层 + ETL 清洗层 + 存储层（仓库/调度器）+ CLI 扩展 + 单元测试 + 集成测试（135 测试用例通过） |
+| 我学到了什么？ | 见 findings.md（数据库 Schema、配置系统、CLI 工具、包结构设计、Stage 3 架构、数据源适配、ETL 清洗层、存储层、CLI 命令、测试策略、CLI 模块化重构） |
+| 我做了什么？ | Stage 3 完成 + CLI 重构设计文档
 
 ---
 *完成每个阶段或遇到错误后更新*

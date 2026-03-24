@@ -122,6 +122,18 @@
 - **测试覆盖：** 135 个测试用例通过
 - **状态：** complete
 
+### 阶段 3.1：CLI 模块化重构
+- [ ] 创建 `quant/cli/` 目录结构
+- [ ] 迁移 fetch 命令到 `cli/fetch.py`
+- [ ] 迁移 scheduler 命令到 `cli/scheduler.py`
+- [ ] 迁移 db 命令到 `cli/db.py`
+- [ ] 迁移 init-data 命令到 `cli/init_data.py`
+- [ ] 创建 `cli/__init__.py` 注册所有命令
+- [ ] 删除原 `quant/cli.py`
+- [ ] 运行测试验证
+- **设计文档：** [2026-03-25-cli-refactor-design.md](docs/superpowers/specs/2026-03-25-cli-refactor-design.md)
+- **状态：** design_complete
+
 ### 阶段 4：策略模块
 - [ ] Verses 因子库
   - [ ] 基础操作符（rank, quantile, zscore）
