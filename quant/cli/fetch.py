@@ -15,15 +15,9 @@ def fetch(
         ...,
         help="数据类型: stock_list/daily/index/basic/calendar/financial",
     ),
-    start_date: str | None = Option(
-        None, "--start", "-s", help="开始日期 (YYYYMMDD)"
-    ),
-    end_date: str | None = Option(
-        None, "--end", "-e", help="结束日期 (YYYYMMDD)"
-    ),
-    source: str = Option(
-        "tushare", "--source", "-src", help="数据源: tushare/akshare"
-    ),
+    start_date: str | None = Option(None, "--start", "-s", help="开始日期 (YYYYMMDD)"),
+    end_date: str | None = Option(None, "--end", "-e", help="结束日期 (YYYYMMDD)"),
+    source: str = Option("tushare", "--source", "-src", help="数据源: tushare/akshare"),
 ) -> None:
     """获取数据
 
@@ -71,25 +65,19 @@ def _run_fetch(
                 console.print(f"[green]股票列表更新完成，插入 {count} 条记录[/green]")
 
             elif data_type == "daily":
-                df = await data_source.get_daily_quotes(
-                    start_date=start_date, end_date=end_date
-                )
+                df = await data_source.get_daily_quotes(start_date=start_date, end_date=end_date)
                 if not df.empty:
                     df = pipeline.run(df)
                 count = await repository.upsert_daily_quotes(df)
                 console.print(f"[green]日线行情更新完成，插入 {count} 条记录[/green]")
 
             elif data_type == "index":
-                df = await data_source.get_index_quotes(
-                    start_date=start_date, end_date=end_date
-                )
+                df = await data_source.get_index_quotes(start_date=start_date, end_date=end_date)
                 count = await repository.upsert_index_quotes(df)
                 console.print(f"[green]指数行情更新完成，插入 {count} 条记录[/green]")
 
             elif data_type == "basic":
-                df = await data_source.get_daily_basic(
-                    start_date=start_date, end_date=end_date
-                )
+                df = await data_source.get_daily_basic(start_date=start_date, end_date=end_date)
                 count = await repository.upsert_daily_basic(df)
                 console.print(f"[green]每日指标更新完成，插入 {count} 条记录[/green]")
 
@@ -110,7 +98,9 @@ def _run_fetch(
 
             else:
                 console.print(f"[red]未知数据类型: {data_type}[/red]")
-                console.print("支持的数据类型: stock_list, daily, index, basic, calendar, financial")
+                console.print(
+                    "支持的数据类型: stock_list, daily, index, basic, calendar, financial"
+                )
 
         except Exception as e:
             console.print(f"[red]获取数据失败: {e}[/red]")

@@ -60,9 +60,7 @@ def scheduler(
         ...,
         help="Action: start/stop/status/run/list",
     ),
-    job_id: str | None = Option(
-        None, "--job", "-j", help="Job ID (for run command)"
-    ),
+    job_id: str | None = Option(None, "--job", "-j", help="Job ID (for run command)"),
 ) -> None:
     """Scheduler management.
 
@@ -110,10 +108,12 @@ def _scheduler_start() -> None:
             return
 
     console.print("[blue]Starting scheduler...[/blue]")
-    console.print("[yellow]Note: Scheduler will run in background, use 'quant scheduler stop' to stop[/yellow]")
+    console.print(
+        "[yellow]Note: Scheduler will run in background, use 'quant scheduler stop' to stop[/yellow]"
+    )
 
     # Create startup script
-    script = f'''
+    script = f"""
 import asyncio
 import sys
 sys.path.insert(0, "{os.getcwd()}")
@@ -139,7 +139,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-'''
+"""
 
     # Write script file
     with open(script_file, "w") as f:
