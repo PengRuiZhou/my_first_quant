@@ -209,3 +209,19 @@ black . && ruff check .
 2. `quant --help` 显示完整命令列表
 3. 测试全部通过
 4. 代码风格检查通过（black/ruff/mypy）
+
+## 实现状态
+
+**状态**: ✅ 已完成
+
+**完成时间**: 2026-03-25
+
+**实现文件**:
+- `quant/cli/__init__.py` - 主入口
+- `quant/cli/console.py` - 共享 Console
+- `quant/cli/version.py` - 版本和初始化命令
+- `quant/cli/db.py` - 数据库操作命令
+- `quant/cli/fetch.py` - 数据获取命令
+- `quant/cli/scheduler.py` - 调度器管理命令
+- `quant/cli/init_data.py` - 历史数据初始化命令
+- `quant/cli/backtest.py` - 回测命令（占位）
