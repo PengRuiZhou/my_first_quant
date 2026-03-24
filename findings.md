@@ -338,6 +338,104 @@ Verse = Operator(Data)
 | 模型：逐步扩展 | 先跑通流程，再迭代优化 |
 | 包结构：quant/ 顶层包 | 清晰的命名空间，避免与系统包冲突 |
 | Python 版本：>= 3.12 | 使用最新稳定版本 |
+| CLI 架构：模块化拆分 | 按命令拆分到 quant/cli/ 目录，提高可维护性和扩展性 |
+
+#### Stage 3.1 CLI 模块化重构实现发现
+
+**模块结构**：
+```
+quant/cli/
+├── __init__.py      # 主入口，注册所有命令
+├── console.py       # 共享 Console 对象（避免循环导入）
+├── version.py       # version + init 命令
+├── db.py            # db 命令（数据库操作）
+├── fetch.py         # fetch 命令（数据获取）
+├── scheduler.py     # scheduler 命令（调度器管理，~240行）
+├── init_data.py     # init-data 命令（历史数据初始化）
+└── backtest.py      # backtest 命令（回测，占位）
+```
+
+**关键设计决策**：
+1. **循环导入避免**：`console` 对象放在单独的 `console.py` 文件中，子模块从 `quant.cli.console` 导入
+2. **命令注册**：主入口使用 `app.command()` 注册，支持 `name=` 参数处理命令名与函数名不一致（如 `init-data` vs `init_data`）
+3. **文件优先级**：Python 优先导入文件而非包，因此必须删除旧的 `quant/cli.py` 文件
+
+**实现结果**：
+- 原 493 行 `cli.py` 拆分为 8 个模块
+- 135 个测试用例全部通过
+- CLI 命令保持向后兼容
+
+#### Stage 3.2 环境配置实现发现
+
+**PostgreSQL 安装（macOS Homebrew）**：
+```bash
+# 安装
+ALL_PROXY=socks5://127.0.0.1:7897 brew install postgresql@15
+
+# 启动服务
+brew services start postgresql@15
+
+# 创建数据库
+createdb quant
+```
+
+**数据库用户配置**：
+- macOS Homebrew PostgreSQL 默认使用当前系统用户名作为超级用户
+- 需要用 `ALTER USER` 设置密码
+- `.env` 中 `DB_USER` 应设置为实际用户名（如 `peng`）
+
+**pydantic-settings 嵌套模型问题**：
+- 嵌套的 `DatabaseConfig` 不会自动继承父类的 `.env` 文件配置
+- 解决方案：在嵌套模型中也添加 `env_file=".env"` 配置
+```python
+class DatabaseConfig(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_prefix="DB_",
+        env_file=".env",           # 必须显式添加
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+```
+
+**数据库密码 URL 编码问题**：
+- 密码中的特殊字符（如 `@`）会破坏 PostgreSQL 连接 URL 解析
+- 解决方案：使用 `urllib.parse.quote_plus()` 对密码进行 URL 编码
+```python
+from urllib.parse import quote_plus
+
+@property
+def url(self) -> str:
+    encoded_password = quote_plus(self.password)
+    return f"postgresql://{self.user}:{encoded_password}@{self.host}:{self.port}/{self.database}"
+```
+
+**asyncpg 依赖**：
+- SQLAlchemy async 模式需要 `asyncpg` 驱动
+- 安装：`pip install asyncpg`
+
+**环境配置清单**：
+| 项目 | 命令/操作 |
+|------|-----------|
+| .env 文件 | `quant init` |
+| PostgreSQL | `brew install postgresql@15` |
+| 数据库 | `createdb quant` |
+| 密码 | `psql -d quant -c "ALTER USER peng WITH PASSWORD 'xxx';"` |
+| asyncpg | `pip install asyncpg` |
+| 数据库表 | `quant db create` |
+| Tushare Token | 注册后编辑 .env |
+
+**创建的数据库表（11 个）**：
+- `stock_info` - 股票列表
+- `stock_industry` - 行业分类
+- `index_info` - 指数列表
+- `daily_quote` - 日线行情
+- `index_daily_quote` - 指数日线
+- `trade_calendar` - 交易日历
+- `financial_indicator` - 财务指标
+- `daily_basic` - 每日指标
+- `factor_definition` - 因子定义
+- `factor_data` - 因子数据
+- `factor_statistics` - 因子统计
 
 ## Stage 2 补充：项目骨架
 

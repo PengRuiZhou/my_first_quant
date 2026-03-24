@@ -1,20 +1,86 @@
-"""命令行接口"""
+# CLI 模块化重构实现计划
 
-import asyncio
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-import typer
+**Goal:** 将 `quant/cli.py` 拆分为模块化的 `quant/cli/` 包结构，提高可维护性和扩展性。
+
+**Architecture:** 按命令拆分为独立模块，共享 `console` 对象放在单独文件中避免循环导入，主入口在 `__init__.py` 中注册所有命令。
+
+**Tech Stack:** Python 3.12+, typer, rich
+
+---
+
+## 文件结构
+
+```
+quant/cli/
+├── __init__.py      # 主入口，注册所有命令 (~30 行)
+├── console.py       # 共享 Console 对象 (~5 行)
+├── version.py       # version + init 命令 (~30 行)
+├── db.py            # db 命令 (~25 行)
+├── fetch.py         # fetch 命令 (~85 行)
+├── scheduler.py     # scheduler 命令 (~200 行)
+├── init_data.py     # init_data 命令 (~35 行)
+└── backtest.py      # backtest 命令 (~15 行)
+```
+
+---
+
+### Task 1: 创建 console.py - 共享 Console 对象
+
+**Files:**
+- Create: `quant/cli/console.py`
+
+- [ ] **Step 1: 创建 quant/cli 目录**
+
+```bash
+mkdir -p quant/cli
+```
+
+- [ ] **Step 2: 创建 console.py**
+
+```python
+"""共享 Console 对象
+
+避免循环导入：子模块从 quant.cli.console 导入 console，
+而不是从 quant.cli 或 quant.cli.__init__ 导入。
+"""
+
 from rich.console import Console
-from rich.table import Table
 
-app = typer.Typer(
-    name="quant",
-    help="A股量化交易框架",
-    add_completion=False,
-)
 console = Console()
+```
+
+- [ ] **Step 3: 验证导入无错误**
+
+```bash
+python -c "from quant.cli.console import console; print(console)"
+```
+
+Expected: `<console width=...>`
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add quant/cli/console.py
+git commit -m "feat(cli): add shared console module"
+```
+
+---
+
+### Task 2: 创建 version.py - 版本和初始化命令
+
+**Files:**
+- Create: `quant/cli/version.py`
+
+- [ ] **Step 1: 创建 version.py**
+
+```python
+"""版本和初始化命令"""
+
+from quant.cli.console import console
 
 
-@app.command()
 def version() -> None:
     """显示版本信息"""
     from quant import __version__
@@ -22,7 +88,6 @@ def version() -> None:
     console.print(f"[green]quant[/green] version: [bold]{__version__}[/bold]")
 
 
-@app.command()
 def init() -> None:
     """初始化项目（创建配置文件）"""
     import shutil
@@ -40,9 +105,38 @@ def init() -> None:
         console.print("[green]已创建 .env 文件，请填写配置[/green]")
     else:
         console.print("[red].env.example 文件不存在[/red]")
+```
+
+- [ ] **Step 2: 验证导入无错误**
+
+```bash
+python -c "from quant.cli.version import version, init; print('OK')"
+```
+
+Expected: `OK`
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add quant/cli/version.py
+git commit -m "feat(cli): add version and init commands"
+```
+
+---
+
+### Task 3: 创建 db.py - 数据库操作命令
+
+**Files:**
+- Create: `quant/cli/db.py`
+
+- [ ] **Step 1: 创建 db.py**
+
+```python
+"""数据库操作命令"""
+
+from quant.cli.console import console
 
 
-@app.command()
 def db(command: str) -> None:
     """数据库操作
 
@@ -64,25 +158,50 @@ def db(command: str) -> None:
         console.print("[yellow]数据库表已删除[/yellow]")
     else:
         console.print(f"[red]未知命令: {command}[/red]")
+```
+
+- [ ] **Step 2: 验证导入无错误**
+
+```bash
+python -c "from quant.cli.db import db; print('OK')"
+```
+
+Expected: `OK`
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add quant/cli/db.py
+git commit -m "feat(cli): add db command"
+```
+
+---
+
+### Task 4: 创建 fetch.py - 数据获取命令
+
+**Files:**
+- Create: `quant/cli/fetch.py`
+
+- [ ] **Step 1: 创建 fetch.py**
+
+```python
+"""数据获取命令"""
+
+import asyncio
+
+from typer import Argument, Option
+
+from quant.cli.console import console
 
 
-# ===== Fetch 命令 =====
-
-@app.command()
 def fetch(
-    data_type: str = typer.Argument(
+    data_type: str = Argument(
         ...,
         help="数据类型: stock_list/daily/index/basic/calendar/financial",
     ),
-    start_date: str | None = typer.Option(
-        None, "--start", "-s", help="开始日期 (YYYYMMDD)"
-    ),
-    end_date: str | None = typer.Option(
-        None, "--end", "-e", help="结束日期 (YYYYMMDD)"
-    ),
-    source: str = typer.Option(
-        "tushare", "--source", "-src", help="数据源: tushare/akshare"
-    ),
+    start_date: str | None = Option(None, "--start", "-s", help="开始日期 (YYYYMMDD)"),
+    end_date: str | None = Option(None, "--end", "-e", help="结束日期 (YYYYMMDD)"),
+    source: str = Option("tushare", "--source", "-src", help="数据源: tushare/akshare"),
 ) -> None:
     """获取数据
 
@@ -176,9 +295,42 @@ def _run_fetch(
             raise
 
     asyncio.run(_fetch_async())
+```
 
+- [ ] **Step 2: 验证导入无错误**
 
-# ===== Scheduler 命令 =====
+```bash
+python -c "from quant.cli.fetch import fetch; print('OK')"
+```
+
+Expected: `OK`
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add quant/cli/fetch.py
+git commit -m "feat(cli): add fetch command"
+```
+
+---
+
+### Task 5: 创建 scheduler.py - 调度器管理命令
+
+**Files:**
+- Create: `quant/cli/scheduler.py`
+
+- [ ] **Step 1: 创建 scheduler.py**
+
+```python
+"""调度器管理命令"""
+
+import asyncio
+import os
+
+from rich.table import Table
+from typer import Argument, Option
+
+from quant.cli.console import console
 
 # 日志和 PID 文件路径
 _SCHEDULER_DIR = ".quant/scheduler"
@@ -208,15 +360,32 @@ def _get_scheduler_paths() -> tuple[str, str, str, str]:
     )
 
 
-@app.command()
+def _is_process_running(pid: str) -> bool:
+    """检查进程是否在运行
+
+    Args:
+        pid: 进程 ID
+
+    Returns:
+        进程是否在运行
+    """
+    if not pid:
+        return False
+
+    try:
+        # 使用 kill -0 检查进程是否存在（跨平台兼容）
+        os.kill(int(pid), 0)
+        return True
+    except (OSError, ValueError):
+        return False
+
+
 def scheduler(
-    action: str = typer.Argument(
+    action: str = Argument(
         ...,
         help="操作: start/stop/status/run/list",
     ),
-    job_id: str | None = typer.Option(
-        None, "--job", "-j", help="任务ID (用于 run 命令)"
-    ),
+    job_id: str | None = Option(None, "--job", "-j", help="任务ID (用于 run 命令)"),
 ) -> None:
     """调度器管理
 
@@ -251,32 +420,8 @@ def _run_scheduler(action: str, job_id: str | None) -> None:
         console.print("支持的操作: start, stop, status, run, list")
 
 
-def _is_process_running(pid: str) -> bool:
-    """检查进程是否在运行
-
-    Args:
-        pid: 进程 ID
-
-    Returns:
-        进程是否在运行
-    """
-    import os
-
-    if not pid:
-        return False
-
-    try:
-        # 使用 kill -0 检查进程是否存在（跨平台兼容）
-        os.kill(int(pid), 0)
-        return True
-    except (OSError, ValueError):
-        return False
-
-
 def _scheduler_start() -> None:
     """启动调度器 (后台进程)"""
-    import os
-
     _, pid_file, log_file, script_file = _get_scheduler_paths()
 
     # 检查是否已运行
@@ -336,8 +481,6 @@ if __name__ == "__main__":
 
 def _scheduler_stop() -> None:
     """停止调度器"""
-    import os
-
     _, pid_file, _, _ = _get_scheduler_paths()
 
     if not os.path.exists(pid_file):
@@ -357,8 +500,6 @@ def _scheduler_stop() -> None:
 
 def _scheduler_status() -> None:
     """查看调度器状态"""
-    import os
-
     _, pid_file, log_file, _ = _get_scheduler_paths()
 
     if not os.path.exists(pid_file):
@@ -424,13 +565,45 @@ def _scheduler_list() -> None:
         table.add_row(job_id, name, cron)
 
     console.print(table)
+```
+
+- [ ] **Step 2: 验证导入无错误**
+
+```bash
+python -c "from quant.cli.scheduler import scheduler; print('OK')"
+```
+
+Expected: `OK`
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add quant/cli/scheduler.py
+git commit -m "feat(cli): add scheduler command"
+```
+
+---
+
+### Task 6: 创建 init_data.py - 历史数据初始化命令
+
+**Files:**
+- Create: `quant/cli/init_data.py`
+
+- [ ] **Step 1: 创建 init_data.py**
+
+```python
+"""历史数据初始化命令"""
+
+import asyncio
+
+from rich.table import Table
+from typer import Option
+
+from quant.cli.console import console
 
 
-# ===== Init Data 命令 =====
-
-@app.command()
 def init_data(
-    years: int = typer.Option(3, "--years", "-y", help="初始化历史数据年数"),
+    years: int = Option(3, "--years", "-y", help="初始化历史数据年数"),
 ) -> None:
     """初始化历史数据
 
@@ -468,19 +641,98 @@ def init_data(
         console.print("[green]历史数据初始化完成！[/green]")
 
     asyncio.run(_init())
+```
+
+- [ ] **Step 2: 验证导入无错误**
+
+```bash
+python -c "from quant.cli.init_data import init_data; print('OK')"
+```
+
+Expected: `OK`
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add quant/cli/init_data.py
+git commit -m "feat(cli): add init-data command"
+```
+
+---
+
+### Task 7: 创建 backtest.py - 回测命令
+
+**Files:**
+- Create: `quant/cli/backtest.py`
+
+- [ ] **Step 1: 创建 backtest.py**
+
+```python
+"""回测命令"""
+
+from typer import Argument, Option
+
+from quant.cli.console import console
 
 
-@app.command()
 def backtest(
-    strategy: str = typer.Argument(..., help="策略名称"),
-    start_date: str = typer.Option(None, "--start", "-s", help="开始日期"),
-    end_date: str = typer.Option(None, "--end", "-e", help="结束日期"),
-    capital: float = typer.Option(1_000_000, "--capital", "-c", help="初始资金"),
+    strategy: str = Argument(..., help="策略名称"),
+    start_date: str = Option(None, "--start", "-s", help="开始日期"),
+    end_date: str = Option(None, "--end", "-e", help="结束日期"),
+    capital: float = Option(1_000_000, "--capital", "-c", help="初始资金"),
 ) -> None:
     """运行回测"""
     console.print(f"[blue]正在回测策略: {strategy}[/blue]")
     # TODO: 实现回测逻辑
     console.print("[yellow]功能开发中...[/yellow]")
+```
+
+- [ ] **Step 2: 验证导入无错误**
+
+```bash
+python -c "from quant.cli.backtest import backtest; print('OK')"
+```
+
+Expected: `OK`
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add quant/cli/backtest.py
+git commit -m "feat(cli): add backtest command placeholder"
+```
+
+---
+
+### Task 8: 创建 __init__.py - 主入口
+
+**Files:**
+- Create: `quant/cli/__init__.py`
+
+- [ ] **Step 1: 创建 __init__.py**
+
+```python
+"""CLI 主入口"""
+
+import typer
+
+from quant.cli import backtest, db, fetch, init_data, scheduler, version
+
+# 主应用
+app = typer.Typer(
+    name="quant",
+    help="A股量化交易框架",
+    add_completion=False,
+)
+
+# 注册命令（使用 name= 参数处理命令名与函数名不一致的情况）
+app.command()(version.version)
+app.command()(version.init)
+app.command()(db.db)
+app.command(name="fetch")(fetch.fetch)
+app.command()(scheduler.scheduler)
+app.command(name="init-data")(init_data.init_data)
+app.command()(backtest.backtest)
 
 
 def main() -> None:
@@ -490,3 +742,108 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+```
+
+- [ ] **Step 2: 验证 CLI 可正常加载**
+
+```bash
+python -c "from quant.cli import main, app; print('OK')"
+```
+
+Expected: `OK`
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add quant/cli/__init__.py
+git commit -m "feat(cli): add main entry point with all commands registered"
+```
+
+---
+
+### Task 9: 删除旧文件并验证
+
+**Files:**
+- Delete: `quant/cli.py`
+
+- [ ] **Step 1: 删除旧的 cli.py 文件**
+
+```bash
+rm quant/cli.py
+```
+
+> **重要**: 必须删除此文件，否则 Python 会优先导入文件而非包。
+
+- [ ] **Step 2: 验证 CLI 命令正常工作**
+
+```bash
+quant --help
+```
+
+Expected: 显示所有命令列表（version, init, db, fetch, scheduler, init-data, backtest）
+
+- [ ] **Step 3: 验证具体命令**
+
+```bash
+quant version
+```
+
+Expected: `quant version: x.x.x`
+
+- [ ] **Step 4: 运行测试**
+
+```bash
+pytest
+```
+
+Expected: 所有测试通过
+
+- [ ] **Step 5: 代码风格检查**
+
+```bash
+black quant/cli/ && ruff check quant/cli/ && mypy quant/cli/
+```
+
+Expected: 无错误
+
+- [ ] **Step 6: Commit 删除旧文件**
+
+```bash
+git add -A && git commit -m "refactor(cli): remove old cli.py in favor of modular package"
+```
+
+---
+
+### Task 10: 更新文档
+
+**Files:**
+- Modify: `docs/superpowers/specs/2026-03-25-cli-refactor-design.md`
+
+- [ ] **Step 1: 更新设计文档，标记为已完成**
+
+在设计文档末尾添加：
+
+```markdown
+## 实现状态
+
+**状态**: ✅ 已完成
+
+**完成时间**: 2026-03-25
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add docs/superpowers/specs/2026-03-25-cli-refactor-design.md
+git commit -m "docs(cli): mark refactor design as completed"
+```
+
+---
+
+## 验收标准
+
+- [ ] `quant --help` 显示完整命令列表
+- [ ] `quant version` 正常输出
+- [ ] `quant scheduler list` 正常显示任务列表
+- [ ] 所有测试通过
+- [ ] 代码风格检查通过

@@ -122,6 +122,34 @@
 - **测试覆盖：** 135 个测试用例通过
 - **状态：** complete
 
+### 阶段 3.1：CLI 模块化重构 ✅
+- [x] 创建 `quant/cli/` 目录结构
+- [x] 创建 `cli/console.py` - 共享 Console 对象
+- [x] 创建 `cli/version.py` - version + init 命令
+- [x] 创建 `cli/db.py` - db 命令
+- [x] 创建 `cli/fetch.py` - fetch 命令
+- [x] 创建 `cli/scheduler.py` - scheduler 命令（~240行）
+- [x] 创建 `cli/init_data.py` - init-data 命令
+- [x] 创建 `cli/backtest.py` - backtest 命令（占位）
+- [x] 创建 `cli/__init__.py` 注册所有命令
+- [x] 删除原 `quant/cli.py`
+- [x] 运行测试验证（135 测试通过）
+- **设计文档：** [2026-03-25-cli-refactor-design.md](docs/superpowers/specs/2026-03-25-cli-refactor-design.md)
+- **实现计划：** [2026-03-25-cli-refactor-implementation.md](docs/superpowers/plans/2026-03-25-cli-refactor-implementation.md)
+- **状态：** complete
+
+### 阶段 3.2：开发环境配置 ✅
+- [x] 创建 `.env` 配置文件
+- [x] 安装 PostgreSQL 15 (Homebrew)
+- [x] 创建 `quant` 数据库
+- [x] 设置数据库用户密码
+- [x] 安装 `asyncpg` 依赖
+- [x] 修复 pydantic-settings 嵌套模型环境变量加载问题
+- [x] 修复数据库密码 URL 编码问题（`@` 符号）
+- [x] 创建数据库表（11 个表）
+- [ ] 配置 Tushare API Token（用户待完成）
+- **状态：** complete（Tushare Token 待用户注册后配置）
+
 ### 阶段 4：策略模块
 - [ ] Verses 因子库
   - [ ] 基础操作符（rank, quantile, zscore）

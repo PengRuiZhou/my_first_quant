@@ -171,15 +171,80 @@
 | 2026-03-22 Stage3 | Pylance: `self._report` 可能为 None | 1 | validator.py: 添加 `if self._report is not None` 检查 |
 | 2026-03-22 Stage3 Phase2 | ImportError: `get_logger` not found | 1 | pipeline.py: 改用 `from loguru import logger` 直接导入 |
 | 2026-03-22 Stage3 Phase3 | Pylance: `result.rowcount` 属性不存在 | 1 | repository.py: 使用 `getattr(result, "rowcount", 0) or 0` 避免 Pylance 类型错误 |
+| 2026-03-25 Stage3.2 | pydantic-settings 嵌套模型不加载 .env | 2 | 在 DatabaseConfig/TushareConfig 中添加 `env_file=".env"` 配置 |
+| 2026-03-25 Stage3.2 | 数据库密码 `@` 符号破坏 URL 解析 | 1 | 使用 `urllib.parse.quote_plus()` 对密码进行 URL 编码 |
+
+### 阶段 3.1：CLI 模块化重构
+- **状态：** complete
+- **开始时间：** 2026-03-25
+- **完成时间：** 2026-03-25
+- 已采取的行动：
+  - 分析现有 CLI 结构（493 行代码）
+  - 识别可提取的较大函数（fetch, scheduler, init_data 等）
+  - 设计模块化目录结构（quant/cli/）
+  - 编写设计文档 `docs/superpowers/specs/2026-03-25-cli-refactor-design.md`
+  - **实现 8 个 CLI 模块**（使用 Subagent-Driven Development）
+  - 删除原 `quant/cli.py` 文件
+  - 验证所有 CLI 命令正常工作
+- 创建/修改的文件：
+  - `quant/cli/__init__.py` - 主入口，注册所有命令
+  - `quant/cli/console.py` - 共享 Console 对象
+  - `quant/cli/version.py` - version + init 命令
+  - `quant/cli/db.py` - db 命令
+  - `quant/cli/fetch.py` - fetch 命令
+  - `quant/cli/scheduler.py` - scheduler 命令（~240行）
+  - `quant/cli/init_data.py` - init-data 命令
+  - `quant/cli/backtest.py` - backtest 命令（占位）
+  - `docs/superpowers/specs/2026-03-25-cli-refactor-design.md`（设计文档）
+- 提交记录：
+  - `4735424` - feat(cli): add shared console module
+  - `c3cca14` - feat(cli): add version and init commands
+  - `66b55c1` - feat(cli): add db command
+  - `3fad36b` - feat(cli): add fetch command
+  - `10b9ca1` - feat(cli): add scheduler command
+  - `766dd05` - feat(cli): add init-data command
+  - `a9ba18f` - feat(cli): add backtest command
+  - `1179123` - feat(cli): add main entry point
+  - `ccc318f` - refactor(cli): remove old cli.py
+  - `5e8ebdf` - docs(cli): mark design as completed
+- 验证结果：
+  - `quant --help` 显示 7 个命令 ✅
+  - `quant version` 输出正确 ✅
+  - 135 个测试用例通过 ✅
+  - black + ruff 检查通过 ✅
+
+### 阶段 3.2：开发环境配置
+- **状态：** complete
+- **开始时间：** 2026-03-25
+- **完成时间：** 2026-03-25
+- 已采取的行动：
+  - 创建 `.env` 配置文件（`quant init`）
+  - 安装 PostgreSQL 15 via Homebrew
+  - 启动 PostgreSQL 服务（`brew services start postgresql@15`）
+  - 创建 `quant` 数据库（`createdb quant`）
+  - 设置数据库用户密码
+  - 安装 `asyncpg` 异步 PostgreSQL 驱动
+  - **修复 pydantic-settings 嵌套模型加载问题**（在 DatabaseConfig/TushareConfig 中添加 `env_file` 配置）
+  - **修复数据库密码 URL 编码问题**（使用 `urllib.parse.quote_plus` 编码密码中的特殊字符）
+  - 创建数据库表（`quant db create`，11 个表）
+- 创建/修改的文件：
+  - `.env` - 创建并配置
+  - `quant/core/config.py` - 修复嵌套模型加载 + URL 编码
+- 数据库表创建成功：
+  - stock_info, stock_industry, index_info, daily_quote
+  - index_daily_quote, trade_calendar, financial_indicator
+  - daily_basic, factor_definition, factor_data, factor_statistics
+- 待完成：
+  - 用户注册 Tushare 并配置 Token（访问 https://tushare.pro/register）
 
 ## 五问重启检查
 | 问题 | 答案 |
 |------|------|
-| 我在哪里？ | 阶段 3 完成（含测试），待开始阶段 4 策略模块 |
-| 我要去哪里？ | 阶段 4-7：策略 → 回测 → 交易 → 集成 |
+| 我在哪里？ | 阶段 3.2 环境配置完成，数据库表已创建，待配置 Tushare Token |
+| 我要去哪里？ | 阶段 4：策略模块（Verses 因子库 → Lanetech 模型 → Alpha → 优化器） |
 | 目标是什么？ | 构建 A 股量化交易框架，支持因子研究、回测和实盘 |
-| 我学到了什么？ | 见 findings.md（数据库 Schema、配置系统、CLI 工具、包结构设计、Stage 3 架构、数据源适配、ETL 清洗层、存储层、CLI 命令、测试策略） |
-| 我做了什么？ | Stage 3 完成：数据源层 + ETL 清洗层 + 存储层（仓库/调度器）+ CLI 扩展 + 单元测试 + 集成测试（135 测试用例通过） |
+| 我学到了什么？ | 见 findings.md（pydantic-settings 嵌套模型加载、URL 编码、PostgreSQL 安装配置） |
+| 我做了什么？ | Stage 3.2 完成（PostgreSQL 安装 + 数据库创建 + asyncpg 安装 + 表创建 + 2 个 bug 修复） |
 
 ---
 *完成每个阶段或遇到错误后更新*
