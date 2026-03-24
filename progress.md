@@ -173,32 +173,52 @@
 | 2026-03-22 Stage3 Phase3 | Pylance: `result.rowcount` 属性不存在 | 1 | repository.py: 使用 `getattr(result, "rowcount", 0) or 0` 避免 Pylance 类型错误 |
 
 ### 阶段 3.1：CLI 模块化重构
-- **状态：** design_complete
+- **状态：** complete
 - **开始时间：** 2026-03-25
+- **完成时间：** 2026-03-25
 - 已采取的行动：
   - 分析现有 CLI 结构（493 行代码）
   - 识别可提取的较大函数（fetch, scheduler, init_data 等）
   - 设计模块化目录结构（quant/cli/）
   - 编写设计文档 `docs/superpowers/specs/2026-03-25-cli-refactor-design.md`
+  - **实现 8 个 CLI 模块**（使用 Subagent-Driven Development）
+  - 删除原 `quant/cli.py` 文件
+  - 验证所有 CLI 命令正常工作
 - 创建/修改的文件：
-  - docs/superpowers/specs/2026-03-25-cli-refactor-design.md（设计文档）
-  - CLAUDE.md（更新模块结构）
-  - findings.md（添加 CLI 模块化决策）
-  - task_plan.md（添加阶段 3.1 任务）
-  - progress.md（更新进度）
-- 设计决策：
-  - 按命令拆分模块：fetch.py, scheduler.py, db.py, init_data.py, backtest.py
-  - 共享 console 对象在 `quant.cli` 模块
-  - 保持入口点兼容：`quant = "quant.cli:main"`
+  - `quant/cli/__init__.py` - 主入口，注册所有命令
+  - `quant/cli/console.py` - 共享 Console 对象
+  - `quant/cli/version.py` - version + init 命令
+  - `quant/cli/db.py` - db 命令
+  - `quant/cli/fetch.py` - fetch 命令
+  - `quant/cli/scheduler.py` - scheduler 命令（~240行）
+  - `quant/cli/init_data.py` - init-data 命令
+  - `quant/cli/backtest.py` - backtest 命令（占位）
+  - `docs/superpowers/specs/2026-03-25-cli-refactor-design.md`（设计文档）
+- 提交记录：
+  - `4735424` - feat(cli): add shared console module
+  - `c3cca14` - feat(cli): add version and init commands
+  - `66b55c1` - feat(cli): add db command
+  - `3fad36b` - feat(cli): add fetch command
+  - `10b9ca1` - feat(cli): add scheduler command
+  - `766dd05` - feat(cli): add init-data command
+  - `a9ba18f` - feat(cli): add backtest command
+  - `1179123` - feat(cli): add main entry point
+  - `ccc318f` - refactor(cli): remove old cli.py
+  - `5e8ebdf` - docs(cli): mark design as completed
+- 验证结果：
+  - `quant --help` 显示 7 个命令 ✅
+  - `quant version` 输出正确 ✅
+  - 135 个测试用例通过 ✅
+  - black + ruff 检查通过 ✅
 
 ## 五问重启检查
 | 问题 | 答案 |
 |------|------|
-| 我在哪里？ | 阶段 3 完成，阶段 3.1 CLI 重构设计完成，待实现 |
-| 我要去哪里？ | 阶段 3.1 实现 → 阶段 4-7：策略 → 回测 → 交易 → 集成 |
+| 我在哪里？ | 阶段 3 完成，阶段 3.1 CLI 模块化重构完成 |
+| 我要去哪里？ | 阶段 4：策略模块（Verses 因子库 → Lanetech 模型 → Alpha → 优化器） |
 | 目标是什么？ | 构建 A 股量化交易框架，支持因子研究、回测和实盘 |
-| 我学到了什么？ | 见 findings.md（数据库 Schema、配置系统、CLI 工具、包结构设计、Stage 3 架构、数据源适配、ETL 清洗层、存储层、CLI 命令、测试策略、CLI 模块化重构） |
-| 我做了什么？ | Stage 3 完成 + CLI 重构设计文档
+| 我学到了什么？ | 见 findings.md（数据库 Schema、配置系统、CLI 工具、包结构设计、Stage 3 架构、数据源适配、ETL 清洗层、存储层、CLI 命令、测试策略、CLI 模块化重构实现） |
+| 我做了什么？ | Stage 3 完成 + CLI 重构完成（8 模块，10 提交，135 测试通过） |
 
 ---
 *完成每个阶段或遇到错误后更新*

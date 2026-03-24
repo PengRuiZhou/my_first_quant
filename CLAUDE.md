@@ -202,6 +202,10 @@ quant backtest <strategy>  # 运行回测
 - [progress.md](progress.md) - 进度日志
 - [docs/superpowers/specs/](docs/superpowers/specs/) - 设计文档目录
   - [2026-03-22-data-module-design.md](docs/superpowers/specs/2026-03-22-data-module-design.md) - Stage 3 数据模块设计
-  - [2026-03-25-cli-refactor-design.md](docs/superpowers/specs/2026-03-25-cli-refactor-design.md) - CLI 模块化重构设计
+  - [2026-03-25-cli-refactor-design.md](docs/superpowers/specs/2026-03-25-cli-refactor-design.md) - CLI 模块化重构设计 ✅
+- [quant/cli/](quant/cli/) - CLI 模块目录
+  - [__init__.py](quant/cli/__init__.py) - 主入口
+  - [scheduler.py](quant/cli/scheduler.py) - 调度器命令
+  - [fetch.py](quant/cli/fetch.py) - 数据获取命令
 - [docs/superpowers/plans/](docs/superpowers/plans/) - 实现计划目录
   - [2026-03-22-stage3-implementation.md](docs/superpowers/plans/2026-03-22-stage3-implementation.md) - Stage 3 实现计划

@@ -340,6 +340,31 @@ Verse = Operator(Data)
 | Python 版本：>= 3.12 | 使用最新稳定版本 |
 | CLI 架构：模块化拆分 | 按命令拆分到 quant/cli/ 目录，提高可维护性和扩展性 |
 
+#### Stage 3.1 CLI 模块化重构实现发现
+
+**模块结构**：
+```
+quant/cli/
+├── __init__.py      # 主入口，注册所有命令
+├── console.py       # 共享 Console 对象（避免循环导入）
+├── version.py       # version + init 命令
+├── db.py            # db 命令（数据库操作）
+├── fetch.py         # fetch 命令（数据获取）
+├── scheduler.py     # scheduler 命令（调度器管理，~240行）
+├── init_data.py     # init-data 命令（历史数据初始化）
+└── backtest.py      # backtest 命令（回测，占位）
+```
+
+**关键设计决策**：
+1. **循环导入避免**：`console` 对象放在单独的 `console.py` 文件中，子模块从 `quant.cli.console` 导入
+2. **命令注册**：主入口使用 `app.command()` 注册，支持 `name=` 参数处理命令名与函数名不一致（如 `init-data` vs `init_data`）
+3. **文件优先级**：Python 优先导入文件而非包，因此必须删除旧的 `quant/cli.py` 文件
+
+**实现结果**：
+- 原 493 行 `cli.py` 拆分为 8 个模块
+- 135 个测试用例全部通过
+- CLI 命令保持向后兼容
+
 ## Stage 2 补充：项目骨架
 
 ### 数据库 Schema 设计
