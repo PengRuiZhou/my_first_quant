@@ -455,8 +455,16 @@ TUSHARE_API_URL=http://lianghua.nanyangqiankun.top
   - 支持多种日期格式（YYYYMMDD, YYYY-MM-DD, YYYY/MM/DD 等）
   - 自动检测日期列（后缀：_date, date, _time, time, datetime, timestamp）
   - 大小写不敏感匹配
-  - 逐行解析，支持混合格式
   - 可配置默认格式（default_format）
+- **性能优化策略**：
+  ```
+  1. 默认格式批量解析 → 成功返回（pandas 向量化）
+  2. pandas 通用解析
+  3. 对 NaT 的行 apply 逐行回退
+  ```
+  - 纯格式（YYYYMMDD）：**7.3M rows/s**
+  - 混合格式：729K rows/s
+  - 删除采样推断（避免偏差，简化流程）
 
 **asyncpg 参数数量限制**：
 - asyncpg 单次查询最多支持 32767 个参数

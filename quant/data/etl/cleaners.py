@@ -414,8 +414,30 @@ class DateConverter(BaseCleaner):
                     date_cols.append(col)
         return date_cols
 
-    def _parse_date_with_formats(self, value: str) -> date | None:
-        """尝试用多种格式解析日期
+    def _try_batch_parse(self, series: pd.Series, fmt: str) -> pd.Series | None:
+        """尝试用指定格式批量解析
+
+        Args:
+            series: 日期字符串 Series
+            fmt: 日期格式
+
+        Returns:
+            解析成功的 Timestamp Series，失败返回 None
+        """
+        try:
+            parsed = pd.to_datetime(series, format=fmt, errors="coerce")
+            # 检查是否所有非空值都解析成功
+            original_notna = series.notna()
+            parsed_notna = parsed.notna()
+            # 如果原来非空的值现在变成空了，说明格式不对
+            if (original_notna & ~parsed_notna).any():
+                return None
+            return parsed
+        except Exception:
+            return None
+
+    def _parse_single_date(self, value: str) -> date | None:
+        """解析单个日期字符串（用于逐行回退）
 
         Args:
             value: 日期字符串
@@ -446,8 +468,54 @@ class DateConverter(BaseCleaner):
 
         return None
 
+    def _convert_column(self, series: pd.Series) -> pd.Series:
+        """转换单列日期（简化版）
+
+        策略：
+        1. 检查是否已经是 date 对象
+        2. 尝试用默认格式批量解析
+        3. 用 pandas 通用解析
+        4. 对剩余失败的行逐行解析
+
+        Args:
+            series: 日期列 Series
+
+        Returns:
+            转换后的 Series（包含 date 对象或 None）
+        """
+        # 1. 检查是否已经是 date 对象
+        first_valid = series.dropna().iloc[0] if not series.dropna().empty else None
+        if first_valid is not None and isinstance(first_valid, date):
+            return series
+
+        # 2. 尝试默认格式批量解析
+        parsed = self._try_batch_parse(series, self.default_format)
+        if parsed is not None:
+            return parsed.dt.date
+
+        # 3. 用 pandas 通用解析
+        parsed = pd.to_datetime(series, errors="coerce")
+
+        # 4. 对失败的行逐行解析（仅处理 NaT 且原始值非空的）
+        failed_mask = parsed.isna() & series.notna()
+        if failed_mask.any():
+            # 用 apply 处理失败的行
+            failed_series = series[failed_mask].astype(str)
+            fallback_dates = failed_series.apply(self._parse_single_date)
+
+            # 将解析成功的转为 Timestamp 以便合并
+            fallback_ts = pd.to_datetime(fallback_dates.dropna())
+            parsed = parsed.combine_first(fallback_ts)
+
+        return parsed.dt.date
+
     def clean(self, df: pd.DataFrame) -> pd.DataFrame:
-        """转换日期字符串为 date 对象
+        """转换日期字符串为 date 对象（优化版）
+
+        性能优化：
+        - 批量解析优先（pandas 向量化）
+        - 采样推断格式
+        - 仅对失败行逐行解析
 
         Args:
             df: 输入 DataFrame
@@ -464,6 +532,8 @@ class DateConverter(BaseCleaner):
 
         df = df.copy()
         converted_count = 0
+        batch_parsed_cols = []
+        fallback_parsed_cols = []
 
         # 确定要转换的列
         columns_to_convert = self.columns if self.columns else self._detect_date_columns(df)
@@ -472,29 +542,21 @@ class DateConverter(BaseCleaner):
             if col not in df.columns:
                 continue
 
-            # 如果已经是 date 对象，跳过
-            if df[col].dtype == object:
-                first_valid = df[col].dropna().iloc[0] if not df[col].dropna().empty else None
-                if first_valid is not None and isinstance(first_valid, date):
-                    # 已经是 date 对象，跳过
-                    continue
-
-            # 使用逐行解析来处理混合格式
             try:
-                parsed_dates = []
-                for val in df[col]:
-                    if pd.isna(val):
-                        parsed_dates.append(None)
-                    elif isinstance(val, date):
-                        parsed_dates.append(val)
-                    elif isinstance(val, str):
-                        parsed = self._parse_date_with_formats(val)
-                        parsed_dates.append(parsed)
-                    else:
-                        parsed_dates.append(None)
+                # 记录解析前的 NaT 数量
+                original_notna = df[col].notna().sum()
 
-                df[col] = parsed_dates
+                # 使用优化的列转换方法
+                df[col] = self._convert_column(df[col])
                 converted_count += 1
+
+                # 统计解析方式（用于调试）
+                final_notna = df[col].notna().sum()
+                if final_notna == original_notna:
+                    batch_parsed_cols.append(col)
+                else:
+                    fallback_parsed_cols.append(col)
+
             except Exception:
                 # 转换失败，保持原样
                 pass
@@ -504,6 +566,8 @@ class DateConverter(BaseCleaner):
             "columns_converted": columns_to_convert,
             "converted_count": converted_count,
             "default_format": self.default_format,
+            "batch_parsed": batch_parsed_cols,
+            "fallback_parsed": fallback_parsed_cols,
         }
 
         return df

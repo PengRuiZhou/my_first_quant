@@ -304,6 +304,11 @@
     - 添加更多日期列后缀（datetime, timestamp）
     - 大小写不敏感匹配
     - 修复 pandas 3.0 混合格式解析问题
+  - **性能优化**：
+    - 批量解析优先（pandas 向量化）
+    - 删除采样推断（避免偏差，简化流程）
+    - 仅对失败行逐行回退
+    - 性能：纯格式 7.3M rows/s，混合格式 729K rows/s
 - 创建/修改的文件：
   - `quant/data/etl/cleaners.py` - 添加 DateConverter 类
   - `quant/data/etl/__init__.py` - 导出 DateConverter
