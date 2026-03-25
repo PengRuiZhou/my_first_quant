@@ -58,7 +58,6 @@ class TushareClient(BaseDataSource):
         "market": "market",
         "list_date": "list_date",
         "delist_date": "delist_date",
-        "is_hs": "is_hs",
         "curr_type": "curr_type",
         "full_name": "full_name",
         "cnspell": "cnspell",
@@ -198,6 +197,11 @@ class TushareClient(BaseDataSource):
         # 添加 is_active 字段
         result["is_active"] = True
 
+        # 转换日期字符串为 date 对象
+        for col in ["list_date", "delist_date"]:
+            if col in result.columns:
+                result[col] = pd.to_datetime(result[col], format="%Y%m%d", errors="coerce").dt.date
+
         logger.info(f"获取到 {len(result)} 条股票信息")
         return result
 
@@ -248,6 +252,11 @@ class TushareClient(BaseDataSource):
         )
 
         result = self._rename_columns(df, self.DAILY_QUOTE_MAP)
+
+        # 转换日期字符串为 date 对象
+        if "trade_date" in result.columns:
+            result["trade_date"] = pd.to_datetime(result["trade_date"], format="%Y%m%d", errors="coerce").dt.date
+
         return result
 
     @retry_on_failure(max_retries=3)
@@ -276,6 +285,11 @@ class TushareClient(BaseDataSource):
         )
 
         result = self._rename_columns(df, self.DAILY_QUOTE_MAP)
+
+        # 转换日期字符串为 date 对象
+        if "trade_date" in result.columns:
+            result["trade_date"] = pd.to_datetime(result["trade_date"], format="%Y%m%d", errors="coerce").dt.date
+
         return result
 
     @retry_on_failure(max_retries=3)
@@ -299,6 +313,12 @@ class TushareClient(BaseDataSource):
         )
 
         result = self._rename_columns(df, self.TRADE_CAL_MAP)
+
+        # 转换日期字符串为 date 对象
+        for col in ["cal_date", "pretrade_date"]:
+            if col in result.columns:
+                result[col] = pd.to_datetime(result[col], format="%Y%m%d", errors="coerce").dt.date
+
         return result
 
     @retry_on_failure(max_retries=3)
@@ -327,6 +347,11 @@ class TushareClient(BaseDataSource):
         )
 
         result = self._rename_columns(df, self.DAILY_BASIC_MAP)
+
+        # 转换日期字符串为 date 对象
+        if "trade_date" in result.columns:
+            result["trade_date"] = pd.to_datetime(result["trade_date"], format="%Y%m%d", errors="coerce").dt.date
+
         return result
 
     @retry_on_failure(max_retries=3)

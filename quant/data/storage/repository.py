@@ -103,30 +103,40 @@ class DataRepository:
             cleaned = {k: (None if pd.isna(v) else v) for k, v in record.items()}
             cleaned_records.append(cleaned)
 
+        # 分批插入，避免 asyncpg 参数数量限制 (32767)
+        # 估算每批最大行数: 32767 / 列数, 保守使用 2000
+        num_cols = len(model_class.__table__.columns)
+        batch_size = min(2000, 32000 // max(num_cols, 1))
+
+        total_inserted = 0
         async with self._session_factory() as session:
-            stmt = insert(model_class).values(cleaned_records)
+            for i in range(0, len(cleaned_records), batch_size):
+                batch = cleaned_records[i : i + batch_size]
 
-            if on_conflict == "do_update" and index_elements:
-                # PostgreSQL upsert
-                update_cols = {
-                    c.name: stmt.excluded[c.name]
-                    for c in model_class.__table__.columns
-                    if c.name not in index_elements
-                }
-                stmt = stmt.on_conflict_do_update(
-                    index_elements=index_elements,
-                    set_=update_cols,
-                )
-            else:
-                stmt = stmt.on_conflict_do_nothing()
+                stmt = insert(model_class).values(batch)
 
-            result = await session.execute(stmt)
+                if on_conflict == "do_update" and index_elements:
+                    # PostgreSQL upsert
+                    update_cols = {
+                        c.name: stmt.excluded[c.name]
+                        for c in model_class.__table__.columns
+                        if c.name not in index_elements
+                    }
+                    stmt = stmt.on_conflict_do_update(
+                        index_elements=index_elements,
+                        set_=update_cols,
+                    )
+                else:
+                    stmt = stmt.on_conflict_do_nothing()
+
+                result = await session.execute(stmt)
+                batch_inserted = getattr(result, "rowcount", 0) or 0
+                total_inserted += batch_inserted
+
             await session.commit()
 
-            # rowcount returns number of rows affected (inserted or updated)
-            inserted = getattr(result, "rowcount", 0) or 0
-            logger.debug(f"{model_class.__tablename__}: 插入 {inserted} 行")
-            return inserted
+        logger.debug(f"{model_class.__tablename__}: 插入 {total_inserted} 行")
+        return total_inserted
 
     # ===== 股票信息 =====
 
