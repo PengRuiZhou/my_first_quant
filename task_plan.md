@@ -151,6 +151,24 @@
 - [x] 配置自定义 Tushare API URL（lianghua 镜像）
 - **状态：** complete
 
+### 阶段 3.2.1：Tushare API 配置 ✅
+- [x] 配置 TUSHARE_TOKEN 和 TUSHARE_API_URL
+- [x] 修改 TushareClient 支持自定义 API 地址
+- [x] 使用 setattr() 设置私有属性避免 Pylance 警告
+- **状态：** complete
+
+### 阶段 3.2.2：数据初始化 ✅
+- [x] 安装 greenlet 依赖
+- [x] 修复日期字符串转换（pd.to_datetime().dt.date）
+- [x] 修复 asyncpg 参数数量限制（分批插入）
+- [x] 移除 is_hs 字段（模型中不存在）
+- [x] 初始化 3 年历史数据
+- **数据状态：**
+  - stock_info: 5,493 条
+  - trade_calendar: 1,096 条
+  - daily_quote: 6,000 条
+- **状态：** complete
+
 ### 阶段 4：策略模块
 - [ ] Verses 因子库
   - [ ] 基础操作符（rank, quantile, zscore）
@@ -216,3 +234,9 @@
 | hatchling 无法识别包结构 | 2 | 修改 pyproject.toml 添加 hatch 配置 |
 | lightgbm 找不到 libomp | 1 | 设置 DYLD_LIBRARY_PATH 环境变量 |
 | my_first_quant 导入冲突 | 1 | 重构为 quant/ 顶层包 |
+| pydantic-settings 嵌套模型不加载 .env | 2 | 在嵌套模型中添加 `env_file=".env"` |
+| 数据库密码 `@` 符号破坏 URL | 1 | `urllib.parse.quote_plus()` URL 编码 |
+| Pylance: `_DataApi__http_url` 属性未知 | 1 | 使用 `setattr()` 代替直接属性访问 |
+| asyncpg 参数数量超限 (32767) | 1 | `_bulk_insert` 分批插入 (batch_size=2000) |
+| 日期字符串无法插入 DATE 列 | 1 | `pd.to_datetime().dt.date` 转换 |
+| SQLAlchemy async 缺少 greenlet | 1 | `pip install greenlet` |

@@ -174,6 +174,10 @@
 | 2026-03-25 Stage3.2 | pydantic-settings 嵌套模型不加载 .env | 2 | 在 DatabaseConfig/TushareConfig 中添加 `env_file=".env"` 配置 |
 | 2026-03-25 Stage3.2 | 数据库密码 `@` 符号破坏 URL 解析 | 1 | 使用 `urllib.parse.quote_plus()` 对密码进行 URL 编码 |
 | 2026-03-25 Stage3.2.1 | Pylance: `_DataApi__http_url` 属性未知 | 1 | tushare_client.py: 使用 `setattr()` 代替直接属性访问 |
+| 2026-03-25 Stage3.2.2 | `is_hs` 字段不在 StockInfo 模型中 | 1 | 从 STOCK_LIST_MAP 移除该字段 |
+| 2026-03-25 Stage3.2.2 | asyncpg 参数数量超限 (32767) | 1 | `_bulk_insert` 分批插入 (batch_size=2000) |
+| 2026-03-25 Stage3.2.2 | 日期字符串无法插入 DATE 列 | 1 | `pd.to_datetime().dt.date` 转换 |
+| 2026-03-25 Stage3.2.2 | SQLAlchemy async 缺少 greenlet | 1 | `pip install greenlet` |
 
 ### 阶段 3.1：CLI 模块化重构
 - **状态：** complete
@@ -250,14 +254,32 @@
   - `.env` - 配置 TUSHARE_TOKEN 和 TUSHARE_API_URL
   - `quant/data/sources/tushare_client.py` - 新增 api_url 参数支持
 
+### 阶段 3.2.2：数据初始化
+- **状态：** complete
+- **开始时间：** 2026-03-25
+- **完成时间：** 2026-03-25
+- 已采取的行动：
+  - 安装 `greenlet` 依赖（SQLAlchemy async 需要）
+  - 修复日期字符串转换问题（`pd.to_datetime().dt.date`）
+  - 修复 asyncpg 参数数量限制（分批插入，batch_size=2000）
+  - 移除 `is_hs` 字段（模型中不存在）
+  - 成功初始化 3 年历史数据
+- 创建/修改的文件：
+  - `quant/data/sources/tushare_client.py` - 日期转换
+  - `quant/data/storage/repository.py` - 分批插入
+- 数据初始化结果：
+  - stock_info: 5,493 条 ✅
+  - trade_calendar: 1,096 条 ✅
+  - daily_quote: 6,000 条 ✅
+
 ## 五问重启检查
 | 问题 | 答案 |
 |------|------|
-| 我在哪里？ | 阶段 3.2 环境配置完成，Tushare API 已配置，可开始获取数据 |
+| 我在哪里？ | 阶段 3.2.2 数据初始化完成，已获取 3 年历史数据 |
 | 我要去哪里？ | 阶段 4：策略模块（Verses 因子库 → Lanetech 模型 → Alpha → 优化器） |
 | 目标是什么？ | 构建 A 股量化交易框架，支持因子研究、回测和实盘 |
-| 我学到了什么？ | 见 findings.md（Tushare 自定义 API 配置、setattr 绕过 Pylance 警告） |
-| 我做了什么？ | Stage 3.2 完成 + Tushare API 配置（自定义 URL + Token） |
+| 我学到了什么？ | 见 findings.md（日期转换、asyncpg 参数限制、greenlet 依赖） |
+| 我做了什么？ | Stage 3.2 完成（环境配置 + 数据初始化：5493 股票 + 1096 交易日 + 6000 日线） |
 
 ---
 *完成每个阶段或遇到错误后更新*

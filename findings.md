@@ -447,6 +447,40 @@ TUSHARE_TOKEN=your_token
 TUSHARE_API_URL=http://lianghua.nanyangqiankun.top
 ```
 
+**Tushare 日期字符串转换**：
+- Tushare API 返回日期为字符串格式（如 `'20240101'`）
+- SQLAlchemy async 需要正确的 `date` 对象，不能是字符串
+- 在 `TushareClient` 各方法中添加日期转换：
+```python
+# 转换日期字符串为 date 对象
+if "trade_date" in result.columns:
+    result["trade_date"] = pd.to_datetime(
+        result["trade_date"], format="%Y%m%d", errors="coerce"
+    ).dt.date
+```
+
+**asyncpg 参数数量限制**：
+- asyncpg 单次查询最多支持 32767 个参数
+- 批量插入 5000+ 行 × 14 列会超限
+- 解决方案：在 `_bulk_insert` 中分批插入（batch_size=2000）
+```python
+batch_size = min(2000, 32000 // max(num_cols, 1))
+for i in range(0, len(records), batch_size):
+    batch = records[i : i + batch_size]
+    # ... execute insert
+```
+
+**greenlet 依赖**：
+- SQLAlchemy async 需要 `greenlet` 库
+- 安装：`pip install greenlet`
+
+**数据初始化结果**：
+| 表 | 记录数 |
+|---|-------|
+| stock_info | 5,493 |
+| trade_calendar | 1,096 |
+| daily_quote | 6,000 |
+
 ## Stage 2 补充：项目骨架
 
 ### 数据库 Schema 设计
