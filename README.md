@@ -46,6 +46,9 @@ pip install -e ".[dev]"     # 开发模式（推荐）
 # 或
 pip install -e ".[all]"     # 包含所有可选依赖（ML/DL/RL）
 
+# 安装异步 PostgreSQL 驱动
+pip install asyncpg
+
 # VSCode 配置
 # Cmd+Shift+P -> Python: Select Interpreter
 # 选择: /opt/miniconda3/envs/peng/bin/python
@@ -68,22 +71,71 @@ pip install -e ".[all]"     # 包含所有可选依赖（ML/DL/RL）
 > - LightGBM 需要设置环境变量：`export DYLD_LIBRARY_PATH="/opt/homebrew/opt/libomp/lib:$DYLD_LIBRARY_PATH"`
 > - 建议将上述环境变量添加到 `~/.zshrc` 中
 
+### PostgreSQL 安装
+
+**macOS (Homebrew)**：
+```bash
+# 安装 PostgreSQL 15
+brew install postgresql@15
+
+# 启动服务
+brew services start postgresql@15
+
+# 创建数据库
+createdb quant
+
+# 设置用户密码（可选）
+psql -d quant -c "ALTER USER $(whoami) WITH PASSWORD 'your_password';"
+```
+
+**Docker**：
+```bash
+docker run --name quant-postgres \
+  -e POSTGRES_PASSWORD=your_password \
+  -e POSTGRES_DB=quant \
+  -p 5432:5432 \
+  -d postgres:15
+```
+
 ### 配置
 
 ```bash
-# 复制配置模板
-cp .env.example .env
+# 创建配置文件
+quant init
 
 # 编辑 .env 填写配置
-# 必须配置：
-# - DB_* 数据库连接
-# - TUSHARE_TOKEN Tushare API Token
 ```
+
+**`.env` 配置项**：
+
+```bash
+# 数据库配置（必填）
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=peng                    # macOS Homebrew 默认使用系统用户名
+DB_PASSWORD=your_password
+DB_DATABASE=quant
+
+# Tushare 配置（必填）
+TUSHARE_TOKEN=your_token        # 从 https://tushare.pro 获取
+TUSHARE_API_URL=http://api.tushare.pro  # 可选：自定义 API 地址
+
+# 可选配置
+ENV=development
+DEBUG=false
+LOG_LEVEL=INFO
+```
+
+> **Tushare Token**：访问 https://tushare.pro/register 注册并获取 Token
 
 ### 初始化数据库
 
 ```bash
+# 创建数据库表
 quant db create
+
+# 验证表创建
+psql -d quant -c "\dt"
 ```
 
 ## 项目结构
@@ -95,7 +147,7 @@ my_first_quant/              # 项目根目录
 │   │   ├── sources/         # 数据源适配器（Tushare/AKShare）
 │   │   ├── etl/             # 数据清洗 ETL Pipeline
 │   │   ├── storage/         # 存储层（Repository + Scheduler）
-│   │   └── models/          # 数据库模型
+│   │   └── models/          # 数据库模型（11 个表）
 │   ├── strategy/            # 策略模块
 │   │   ├── verses/          # 因子库
 │   │   ├── lanetech/        # 模型集合
@@ -109,18 +161,26 @@ my_first_quant/              # 项目根目录
 │   │   ├── brokers/         # 券商接口
 │   │   └── risk/            # 风控
 │   ├── core/                # 核心工具 ✅
-│   │   ├── config.py        # 配置管理
-│   │   └── logging.py       # 日志配置
-│   └── cli.py               # 命令行接口 ✅
+│   │   ├── config.py        # 配置管理（pydantic-settings）
+│   │   └── logging.py       # 日志配置（loguru）
+│   └── cli/                 # 命令行接口 ✅
+│       ├── __init__.py      # 主入口
+│       ├── console.py       # 共享 Console
+│       ├── fetch.py         # 数据获取
+│       ├── scheduler.py     # 调度器管理
+│       ├── db.py            # 数据库操作
+│       └── init_data.py     # 历史数据初始化
 ├── .quant/                  # 运行时文件（gitignore）
 │   └── scheduler/           # 调度器运行时文件
 │       ├── scheduler.pid    # 进程 ID
 │       ├── scheduler.log    # 日志文件
 │       └── runner.py        # 运行脚本
-├── tests/                   # 测试
+├── tests/                   # 测试（135 个测试用例）
 ├── docs/                    # 文档
 │   └── superpowers/         # 设计文档和实现计划
 ├── pyproject.toml           # 依赖管理
+├── .env                     # 环境配置（不提交）
+├── .env.example             # 配置模板
 └── README.md
 ```
 
