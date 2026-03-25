@@ -372,6 +372,13 @@ class DataScheduler:
                 stock_df = pipeline.run(stock_df)
             stats["stock_list"] = await self.repository.upsert_stock_info(stock_df)
 
+            # 1.5 指数列表（常用指数约50个）
+            logger.info("获取指数列表...")
+            index_df = await self.data_source.get_index_list()
+            if not index_df.empty:
+                index_df = pipeline.run(index_df)
+            stats["index_list"] = await self.repository.upsert_index_info(index_df)
+
             # 2. 交易日历
             logger.info("获取交易日历...")
             cal_df = await self.data_source.get_trade_calendar(
@@ -403,19 +410,10 @@ class DataScheduler:
                 basic_df = pipeline.run(basic_df)
             stats["daily_basic"] = await self.repository.upsert_daily_basic(basic_df)
 
-            # 5. 指数行情（需指定指数代码）
+            # 5. 指数行情（常用指数约50个）
             logger.info("获取指数行情...")
-            # 常见 A 股指数
-            index_codes = [
-                "000001.SH",  # 上证综指
-                "000300.SH",  # 沪深300
-                "000016.SH",  # 上证50
-                "000905.SH",  # 中证500
-                "399001.SZ",  # 深证成指
-                "399006.SZ",  # 创业板指
-            ]
             all_index_quotes = []
-            for idx_code in index_codes:
+            for idx_code in self.data_source.COMMON_INDEX_CODES:
                 try:
                     idx_df = await self.data_source.get_index_quotes(
                         ts_code=idx_code,

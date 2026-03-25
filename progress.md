@@ -328,5 +328,32 @@
   - 数据源只负责获取原始数据
   - 类型转换统一在 ETL 层处理
 
+### 阶段 3.2.4：数据模型增强 + 指数列表
+- **状态：** complete
+- **开始时间：** 2026-03-26
+- **完成时间：** 2026-03-26
+- 已采取的行动：
+  - **DailyBasic 模型增强**：添加 `ps_ttm`（市销率TTM）和 `dv_ratio`（股息率）字段
+  - **IndexInfo 模型增强**：添加 `index_type`、`category`、`exp_date` 字段
+  - **TushareClient 增强**：
+    - 添加 `COMMON_INDEX_CODES` 常量（约50个常用指数）
+    - 添加 `get_index_list()` 方法获取指数基本信息
+  - **scheduler.py 更新**：
+    - `init_historical_data` 现在获取指数列表（约50个）
+    - 指数行情扩展为50个常用指数（宽基+行业+主题）
+  - **数据库重建**：`quant db drop && quant db create`
+- 创建/修改的文件：
+  - `quant/data/models/financial.py` - 添加 ps_ttm, dv_ratio 字段
+  - `quant/data/models/stock.py` - 添加 index_type, category, exp_date 字段
+  - `quant/data/models/market.py` - 删除重复的 IndexInfo
+  - `quant/data/sources/tushare_client.py` - 添加 get_index_list() + COMMON_INDEX_CODES
+  - `quant/data/storage/scheduler.py` - 更新 init_historical_data
+- 指数覆盖范围（约50个）：
+  - 宽基指数：上证综指、沪深300、上证50、中证500、中证1000、深证成指、创业板指等
+  - 上证行业指数：能源、材料、工业、可选、消费、医药、金融、信息、电信、公用
+  - 沪深300行业指数：10个行业分类
+  - 中证行业指数：10个行业分类
+  - 主题指数：科创50、创业板50、全指医药、中证银行等
+
 ---
 *完成每个阶段或遇到错误后更新*

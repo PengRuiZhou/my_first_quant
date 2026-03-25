@@ -481,6 +481,46 @@ for i in range(0, len(records), batch_size):
 - SQLAlchemy async 需要 `greenlet` 库
 - 安装：`pip install greenlet`
 
+#### Stage 3.2.4 数据模型增强 + 指数列表
+
+**DailyBasic 模型新增字段**：
+- `ps_ttm` (Decimal) - 市销率TTM（市值/过去12个月销售额）
+- `dv_ratio` (Decimal) - 股息率（%）
+
+**IndexInfo 模型新增字段**：
+- `index_type` (String) - 指数类型
+- `category` (String) - 指数类别
+- `exp_date` (Date) - 终止日期
+
+**Tushare index_basic API 字段映射**：
+| API 字段 | 模型字段 | 说明 |
+|----------|----------|------|
+| ts_code | ts_code | TS代码 |
+| name | name | 指数名称 |
+| fullname | full_name | 指数全称 |
+| market | market | 市场 |
+| publisher | publisher | 发布方 |
+| index_type | index_type | 指数类型 |
+| category | category | 指数类别 |
+| base_date | base_date | 基期 |
+| base_point | base_point | 基点 |
+| list_date | list_date | 发布日期 |
+| exp_date | exp_date | 终止日期 |
+| weight_rule | weight_rule | 加权方式 |
+| desc | desc | 描述 |
+
+**常用指数列表（~50个）**：
+- **宽基指数**：上证综指、沪深300、上证50、中证500、中证1000、深证成指、创业板指、中小板指
+- **上证行业指数**：能源、材料、工业、可选、消费、医药、金融、信息、电信、公用
+- **沪深300行业指数**：10个行业分类
+- **中证行业指数**：10个行业分类
+- **主题指数**：科创50、创业板50、全指医药、全指信息、中证传媒、中证银行、中证医疗、国企一带一路、央企创新
+
+**get_index_list() 实现策略**：
+- 如果未指定 market 或 ts_code，返回预设的 50 个常用指数
+- 分批获取（每次最多 50 个代码），避免 API 限制
+- 使用 `fullname` → `full_name` 列名映射
+
 **数据初始化结果**：
 | 表 | 记录数 |
 |---|-------|

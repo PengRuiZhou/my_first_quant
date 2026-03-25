@@ -247,6 +247,126 @@ class TushareClient(BaseDataSource):
 
         return result
 
+    # 常用指数代码列表（约50个）
+    COMMON_INDEX_CODES = [
+        # 宽基指数
+        "000001.SH",  # 上证综指
+        "000016.SH",  # 上证50
+        "000300.SH",  # 沪深300
+        "000905.SH",  # 中证500
+        "000852.SH",  # 中证1000
+        "399001.SZ",  # 深证成指
+        "399005.SZ",  # 中小板指
+        "399006.SZ",  # 创业板指
+        "399102.SZ",  # 创业板综
+        # 上证行业指数
+        "000032.SH",  # 上证能源
+        "000033.SH",  # 上证材料
+        "000034.SH",  # 上证工业
+        "000035.SH",  # 上证可选
+        "000036.SH",  # 上证消费
+        "000037.SH",  # 上证医药
+        "000038.SH",  # 上证金融
+        "000039.SH",  # 上证信息
+        "000040.SH",  # 上证电信
+        "000041.SH",  # 上证公用
+        # 沪深300行业指数
+        "300能源.SH",  # 沪深300能源
+        "300材料.SH",  # 沪深300材料
+        "300工业.SH",  # 沪深300工业
+        "300可选.SH",  # 沪深300可选
+        "300消费.SH",  # 沪深300消费
+        "300医药.SH",  # 沪深300医药
+        "300金融.SH",  # 沪深300金融
+        "300信息.SH",  # 沪深300信息
+        "300电信.SH",  # 沪深300电信
+        "300公用.SH",  # 沪深300公用
+        # 中证行业指数
+        "中证能源.SH",  # 中证能源
+        "中证材料.SH",  # 中证材料
+        "中证工业.SH",  # 中证工业
+        "中证可选.SH",  # 中证可选
+        "中证消费.SH",  # 中证消费
+        "中证医药.SH",  # 中证医药
+        "中证金融.SH",  # 中证金融
+        "中证信息.SH",  # 中证信息
+        "中证电信.SH",  # 中证电信
+        "中证公用.SH",  # 中证公用
+        # 主题指数
+        "000688.SH",  # 科创50
+        "399673.SZ",  # 创业板50
+        "000991.SH",  # 全指医药
+        "000993.SH",  # 全指信息
+        "399971.SZ",  # 中证传媒
+        "399986.SZ",  # 中证银行
+        "399989.SZ",  # 中证医疗
+        "931079.SH",  # 国企一带一路
+        "931643.SH",  # 央企创新
+    ]
+
+    @retry_on_failure(max_retries=3)
+    async def get_index_list(
+        self,
+        market: str | None = None,
+        ts_code: str | None = None,
+    ) -> pd.DataFrame:
+        """获取指数基本信息列表
+
+        Args:
+            market: 市场代码 (SSE/SZSE)，为空则获取常用指数
+            ts_code: 指数代码，指定则只获取该指数
+
+        Returns:
+            指数信息 DataFrame
+        """
+        logger.debug(f"获取指数列表: market={market}, ts_code={ts_code}")
+
+        # 如果没有指定 market 或 ts_code，返回常用指数列表
+        if market is None and ts_code is None:
+            # 从 API 获取这些指数的基本信息
+            all_indexes = []
+            loop = asyncio.get_event_loop()
+
+            # 分批获取（每次最多50个代码）
+            codes = self.COMMON_INDEX_CODES
+            for i in range(0, len(codes), 50):
+                batch = codes[i : i + 50]
+                batch_str = ",".join(batch)
+                try:
+                    df = await loop.run_in_executor(
+                        None,
+                        lambda b=batch_str: self._pro.index_basic(ts_code=b),
+                    )
+                    if not df.empty:
+                        all_indexes.append(df)
+                except Exception as e:
+                    logger.warning(f"获取指数批次失败: {e}")
+
+            if all_indexes:
+                result = pd.concat(all_indexes, ignore_index=True)
+            else:
+                result = pd.DataFrame()
+
+            # 列名映射
+            column_map = {
+                "fullname": "full_name",
+            }
+            result = result.rename(columns=column_map)
+            return result
+
+        # 指定了 market 或 ts_code，从 API 获取
+        loop = asyncio.get_event_loop()
+        df = await loop.run_in_executor(
+            None,
+            lambda: self._pro.index_basic(market=market, ts_code=ts_code),
+        )
+
+        column_map = {
+            "fullname": "full_name",
+        }
+        result = df.rename(columns=column_map)
+        return result
+
     @retry_on_failure(max_retries=3)
     async def get_index_quotes(
         self,
