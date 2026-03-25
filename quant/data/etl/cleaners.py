@@ -338,22 +338,38 @@ class DateConverter(BaseCleaner):
 
     将各种格式的日期字符串转换为 Python date 对象。
     支持的格式：
-    - YYYYMMDD (Tushare 格式)
+    - YYYYMMDD (Tushare 格式，默认优先)
     - YYYY-MM-DD (ISO 格式)
+    - YYYY/MM/DD
     - 其他 pandas 可识别的日期格式
 
     Attributes:
         columns: 要转换的列名列表，为空则自动检测
         date_suffixes: 自动检测时匹配的列名后缀
+        default_format: 优先尝试的日期格式，默认 "%Y%m%d"
     """
 
-    # 常见的日期列名后缀
+    # 常见的日期列名后缀（大小写不敏感匹配）
     DATE_SUFFIXES = (
         "_date",
         "date",
         "_time",
         "time",
+        "datetime",
+        "_datetime",
+        "timestamp",
+        "_timestamp",
     )
+
+    # 支持的日期格式（按优先级排序）
+    DATE_FORMATS = [
+        "%Y%m%d",       # 20250103 (Tushare)
+        "%Y-%m-%d",     # 2025-01-03 (ISO)
+        "%Y/%m/%d",     # 2025/01/03
+        "%Y.%m.%d",     # 2025.01.03
+        "%d/%m/%Y",     # 03/01/2025 (欧洲)
+        "%m/%d/%Y",     # 01/03/2025 (美国)
+    ]
 
     @property
     def name(self) -> str:
@@ -363,15 +379,18 @@ class DateConverter(BaseCleaner):
         self,
         columns: list[str] | None = None,
         date_suffixes: tuple[str, ...] | None = None,
+        default_format: str | None = None,
     ):
         """初始化日期转换器
 
         Args:
             columns: 要转换的列名列表，为空则自动检测
             date_suffixes: 自定义日期列后缀，默认使用 DATE_SUFFIXES
+            default_format: 优先尝试的日期格式，默认 "%Y%m%d"（Tushare 格式）
         """
         self.columns = columns or []
         self.date_suffixes = date_suffixes or self.DATE_SUFFIXES
+        self.default_format = default_format or "%Y%m%d"
         self._stats: CleaningStats | None = None
 
     def _detect_date_columns(self, df: pd.DataFrame) -> list[str]:
@@ -384,13 +403,48 @@ class DateConverter(BaseCleaner):
             检测到的日期列名列表
         """
         date_cols = []
+        col_lower_map = {col: col.lower() for col in df.columns}
+
         for col in df.columns:
-            # 检查列名是否以日期相关后缀结尾
-            if any(col.lower().endswith(suffix) for suffix in self.date_suffixes):
+            col_lower = col_lower_map[col]
+            # 检查列名是否以日期相关后缀结尾（大小写不敏感）
+            if any(col_lower.endswith(suffix) for suffix in self.date_suffixes):
                 # 确保不是数值类型
                 if not pd.api.types.is_numeric_dtype(df[col]):
                     date_cols.append(col)
         return date_cols
+
+    def _parse_date_with_formats(self, value: str) -> date | None:
+        """尝试用多种格式解析日期
+
+        Args:
+            value: 日期字符串
+
+        Returns:
+            解析成功返回 date 对象，失败返回 None
+        """
+        from datetime import datetime as dt
+
+        # 先尝试默认格式
+        formats_to_try = [self.default_format] + [
+            f for f in self.DATE_FORMATS if f != self.default_format
+        ]
+
+        for fmt in formats_to_try:
+            try:
+                return dt.strptime(value, fmt).date()
+            except (ValueError, TypeError):
+                continue
+
+        # 最后尝试 pandas 通用解析
+        try:
+            ts = pd.to_datetime(value, errors="coerce")
+            if pd.notna(ts):
+                return ts.date()
+        except Exception:
+            pass
+
+        return None
 
     def clean(self, df: pd.DataFrame) -> pd.DataFrame:
         """转换日期字符串为 date 对象
@@ -425,16 +479,21 @@ class DateConverter(BaseCleaner):
                     # 已经是 date 对象，跳过
                     continue
 
-            # 使用 pandas to_datetime 转换
+            # 使用逐行解析来处理混合格式
             try:
-                # 先尝试 YYYYMMDD 格式（Tushare 格式）
-                dt_series = pd.to_datetime(df[col], format="%Y%m%d", errors="coerce")
-                # 如果全部失败（但原始数据不为空），尝试通用解析
-                if dt_series.isna().all() and not df[col].isna().all():
-                    dt_series = pd.to_datetime(df[col], errors="coerce")
+                parsed_dates = []
+                for val in df[col]:
+                    if pd.isna(val):
+                        parsed_dates.append(None)
+                    elif isinstance(val, date):
+                        parsed_dates.append(val)
+                    elif isinstance(val, str):
+                        parsed = self._parse_date_with_formats(val)
+                        parsed_dates.append(parsed)
+                    else:
+                        parsed_dates.append(None)
 
-                # 转换为 date 对象
-                df[col] = dt_series.dt.date
+                df[col] = parsed_dates
                 converted_count += 1
             except Exception:
                 # 转换失败，保持原样
@@ -444,6 +503,7 @@ class DateConverter(BaseCleaner):
         self._stats.details = {
             "columns_converted": columns_to_convert,
             "converted_count": converted_count,
+            "default_format": self.default_format,
         }
 
         return df

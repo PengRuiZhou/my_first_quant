@@ -780,3 +780,60 @@ class TestDateConverter:
         result = cleaner.clean(df)
 
         assert result["trade_date"].iloc[0] == date(2024, 1, 1)
+
+    def test_mixed_date_formats(self):
+        """测试混合日期格式（YYYYMMDD 和 YYYY-MM-DD）"""
+        df = pd.DataFrame(
+            {
+                "trade_date": ["20250103", "2025-01-03", "2025/01/03", "20250104"],
+            }
+        )
+        cleaner = DateConverter(columns=["trade_date"])
+        result = cleaner.clean(df)
+
+        # 所有格式都应该被正确转换
+        assert result["trade_date"].iloc[0] == date(2025, 1, 3)
+        assert result["trade_date"].iloc[1] == date(2025, 1, 3)
+        assert result["trade_date"].iloc[2] == date(2025, 1, 3)
+        assert result["trade_date"].iloc[3] == date(2025, 1, 4)
+
+    def test_custom_default_format(self):
+        """测试自定义默认格式"""
+        df = pd.DataFrame(
+            {
+                "date_col": ["2025-01-03", "2025-01-04"],
+            }
+        )
+        # 指定 ISO 格式为默认
+        cleaner = DateConverter(columns=["date_col"], default_format="%Y-%m-%d")
+        result = cleaner.clean(df)
+
+        assert result["date_col"].iloc[0] == date(2025, 1, 3)
+        assert result["date_col"].iloc[1] == date(2025, 1, 4)
+
+    def test_auto_detect_with_various_suffixes(self):
+        """测试自动检测多种日期后缀"""
+        df = pd.DataFrame(
+            {
+                "trade_date": ["20250101"],
+                "list_date": ["20250101"],
+                "update_time": ["20250101"],
+                "create_datetime": ["20250101"],
+                "timestamp": ["20250101"],
+                "TRADE_DATE": ["20250101"],  # 大写
+                "name": ["A"],  # 非日期列
+            }
+        )
+        cleaner = DateConverter()
+        result = cleaner.clean(df)
+
+        # 所有日期列都应该被转换
+        assert result["trade_date"].iloc[0] == date(2025, 1, 1)
+        assert result["list_date"].iloc[0] == date(2025, 1, 1)
+        assert result["update_time"].iloc[0] == date(2025, 1, 1)
+        assert result["create_datetime"].iloc[0] == date(2025, 1, 1)
+        assert result["timestamp"].iloc[0] == date(2025, 1, 1)
+        assert result["TRADE_DATE"].iloc[0] == date(2025, 1, 1)  # 大小写不敏感
+        # name 列不应该被转换
+        assert result["name"].iloc[0] == "A"
+
