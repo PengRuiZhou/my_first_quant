@@ -4,8 +4,10 @@
 - MissingValueCleaner: 缺失值处理
 - DuplicateCleaner: 去重处理
 - OutlierCleaner: 异常值处理
+- DateConverter: 日期字符串转换
 """
 
+from datetime import date
 from typing import Literal
 
 import numpy as np
@@ -91,14 +93,12 @@ class MissingValueCleaner(BaseCleaner):
 
                 # 分组填充
                 if self.strategy == "ffill":
-                    df[cols_to_process] = (
-                        df.groupby(self.group_by)[cols_to_process]
-                        .ffill(limit=self.limit)
+                    df[cols_to_process] = df.groupby(self.group_by)[cols_to_process].ffill(
+                        limit=self.limit
                     )
                 else:  # bfill
-                    df[cols_to_process] = (
-                        df.groupby(self.group_by)[cols_to_process]
-                        .bfill(limit=self.limit)
+                    df[cols_to_process] = df.groupby(self.group_by)[cols_to_process].bfill(
+                        limit=self.limit
                     )
             else:
                 # 无分组列，直接填充
@@ -319,11 +319,132 @@ class OutlierCleaner(BaseCleaner):
         self._stats.output_rows = len(df)
         self._stats.removed_rows = self._stats.input_rows - self._stats.output_rows
         self._stats.modified_rows = outlier_count
-        self._stats.details.update({
-            "method": self.method,
-            "columns_processed": cols_to_process,
-            "total_outliers": int(outlier_count),
-        })
+        self._stats.details.update(
+            {
+                "method": self.method,
+                "columns_processed": cols_to_process,
+                "total_outliers": int(outlier_count),
+            }
+        )
+
+        return df
+
+    def get_stats(self) -> CleaningStats | None:
+        return self._stats
+
+
+class DateConverter(BaseCleaner):
+    """日期字符串转换器
+
+    将各种格式的日期字符串转换为 Python date 对象。
+    支持的格式：
+    - YYYYMMDD (Tushare 格式)
+    - YYYY-MM-DD (ISO 格式)
+    - 其他 pandas 可识别的日期格式
+
+    Attributes:
+        columns: 要转换的列名列表，为空则自动检测
+        date_suffixes: 自动检测时匹配的列名后缀
+    """
+
+    # 常见的日期列名后缀
+    DATE_SUFFIXES = (
+        "_date",
+        "date",
+        "_time",
+        "time",
+    )
+
+    @property
+    def name(self) -> str:
+        return "date_converter"
+
+    def __init__(
+        self,
+        columns: list[str] | None = None,
+        date_suffixes: tuple[str, ...] | None = None,
+    ):
+        """初始化日期转换器
+
+        Args:
+            columns: 要转换的列名列表，为空则自动检测
+            date_suffixes: 自定义日期列后缀，默认使用 DATE_SUFFIXES
+        """
+        self.columns = columns or []
+        self.date_suffixes = date_suffixes or self.DATE_SUFFIXES
+        self._stats: CleaningStats | None = None
+
+    def _detect_date_columns(self, df: pd.DataFrame) -> list[str]:
+        """自动检测日期列
+
+        Args:
+            df: 输入 DataFrame
+
+        Returns:
+            检测到的日期列名列表
+        """
+        date_cols = []
+        for col in df.columns:
+            # 检查列名是否以日期相关后缀结尾
+            if any(col.lower().endswith(suffix) for suffix in self.date_suffixes):
+                # 确保不是数值类型
+                if not pd.api.types.is_numeric_dtype(df[col]):
+                    date_cols.append(col)
+        return date_cols
+
+    def clean(self, df: pd.DataFrame) -> pd.DataFrame:
+        """转换日期字符串为 date 对象
+
+        Args:
+            df: 输入 DataFrame
+
+        Returns:
+            转换后的 DataFrame
+        """
+        self._stats = CleaningStats(self.name)
+        self._stats.input_rows = len(df)
+
+        if df.empty:
+            self._stats.output_rows = 0
+            return df
+
+        df = df.copy()
+        converted_count = 0
+
+        # 确定要转换的列
+        columns_to_convert = self.columns if self.columns else self._detect_date_columns(df)
+
+        for col in columns_to_convert:
+            if col not in df.columns:
+                continue
+
+            # 如果已经是 date 对象，跳过
+            if df[col].dtype == object:
+                first_valid = df[col].dropna().iloc[0] if not df[col].dropna().empty else None
+                if first_valid is not None and isinstance(first_valid, date):
+                    # 已经是 date 对象，跳过
+                    continue
+
+            # 使用 pandas to_datetime 转换
+            try:
+                # 先尝试 YYYYMMDD 格式（Tushare 格式）
+                dt_series = pd.to_datetime(df[col], format="%Y%m%d", errors="coerce")
+                # 如果全部失败（但原始数据不为空），尝试通用解析
+                if dt_series.isna().all() and not df[col].isna().all():
+                    dt_series = pd.to_datetime(df[col], errors="coerce")
+
+                # 转换为 date 对象
+                df[col] = dt_series.dt.date
+                converted_count += 1
+            except Exception:
+                # 转换失败，保持原样
+                pass
+
+        self._stats.output_rows = len(df)
+        self._stats.details = {
+            "columns_converted": columns_to_convert,
+            "converted_count": converted_count,
+        }
 
         return df
 

@@ -6,12 +6,11 @@
 from typing import Literal
 
 import pandas as pd
-
 from loguru import logger
 
 from .adjust import PriceAdjuster
 from .base import BaseCleaner, CleaningStats
-from .cleaners import DuplicateCleaner, MissingValueCleaner, OutlierCleaner
+from .cleaners import DateConverter, DuplicateCleaner, MissingValueCleaner, OutlierCleaner
 from .filters import StockStatusFilter
 
 
@@ -173,11 +172,12 @@ def create_default_pipeline(
     """创建默认 ETL 管道
 
     默认管道包含：
-    1. 去重处理
-    2. 缺失值填充（前向填充）
-    3. 异常值处理（缩尾）
-    4. 前复权
-    5. 状态过滤（排除 ST/停牌/退市）
+    1. 日期字符串转换
+    2. 去重处理
+    3. 缺失值填充（前向填充）
+    4. 异常值处理（缩尾）
+    5. 前复权
+    6. 状态过滤（排除 ST/停牌/退市）
 
     Args:
         adjust_method: 复权方法
@@ -188,6 +188,7 @@ def create_default_pipeline(
     """
     pipeline = (
         ETLPipeline()
+        .add_cleaner(DateConverter())
         .add_cleaner(DuplicateCleaner())
         .add_cleaner(MissingValueCleaner(strategy="ffill", limit=5))
         .add_cleaner(OutlierCleaner(method="winsorize", limits=(0.01, 0.99)))
@@ -206,10 +207,11 @@ def create_default_pipeline(
 def create_minimal_pipeline() -> ETLPipeline:
     """创建最小 ETL 管道
 
-    只包含基本清洗：去重 + 缺失值处理
+    只包含基本清洗：日期转换 + 去重 + 缺失值处理
     """
     return (
         ETLPipeline()
+        .add_cleaner(DateConverter())
         .add_cleaner(DuplicateCleaner())
         .add_cleaner(MissingValueCleaner(strategy="ffill", limit=5))
     )
@@ -223,6 +225,7 @@ def create_strict_pipeline(
     """创建严格 ETL 管道
 
     严格的清洗和过滤：
+    - 日期转换
     - 异常值直接删除
     - 排除低换手率股票
     - 排除低价股
@@ -234,6 +237,7 @@ def create_strict_pipeline(
     """
     pipeline = (
         ETLPipeline()
+        .add_cleaner(DateConverter())
         .add_cleaner(DuplicateCleaner())
         .add_cleaner(MissingValueCleaner(strategy="drop"))  # 直接删除缺失值
         .add_cleaner(OutlierCleaner(method="remove"))  # 直接删除异常值

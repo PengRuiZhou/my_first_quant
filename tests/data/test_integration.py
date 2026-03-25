@@ -4,16 +4,21 @@
 注意：这些测试不连接真实数据库或 API，使用模拟数据。
 """
 
+from datetime import date
+
 import numpy as np
 import pandas as pd
 import pytest
 
-from quant.data.etl.adjust import PriceAdjuster
-from quant.data.etl.cleaners import DuplicateCleaner, MissingValueCleaner, OutlierCleaner
+from quant.data.etl.cleaners import (
+    DateConverter,
+    DuplicateCleaner,
+    MissingValueCleaner,
+    OutlierCleaner,
+)
 from quant.data.etl.filters import StockStatusFilter
-from quant.data.etl.pipeline import ETLPipeline, create_default_pipeline
+from quant.data.etl.pipeline import ETLPipeline, create_default_pipeline, create_minimal_pipeline
 from quant.data.sources.validator import DataValidator, validate_and_merge
-
 
 # ===== Fixtures =====
 
@@ -61,42 +66,55 @@ def raw_quotes_data():
 @pytest.fixture
 def stock_info_data():
     """股票信息数据（包含 ST 和退市股票）"""
-    return pd.DataFrame({
-        "ts_code": ["000001.SZ", "000002.SZ", "000003.SZ", "000004.SZ", "000005.SZ", "000006.SZ"],
-        "name": ["平安银行", "万科A", "ST某某", "*ST某某", "正常股票", "退市股票"],
-        "list_status": ["L", "L", "L", "L", "L", "D"],
-        "is_active": [True, True, True, True, True, False],
-    })
+    return pd.DataFrame(
+        {
+            "ts_code": [
+                "000001.SZ",
+                "000002.SZ",
+                "000003.SZ",
+                "000004.SZ",
+                "000005.SZ",
+                "000006.SZ",
+            ],
+            "name": ["平安银行", "万科A", "ST某某", "*ST某某", "正常股票", "退市股票"],
+            "list_status": ["L", "L", "L", "L", "L", "D"],
+            "is_active": [True, True, True, True, True, False],
+        }
+    )
 
 
 @pytest.fixture
 def tushare_quotes():
     """模拟 Tushare 数据"""
-    return pd.DataFrame({
-        "ts_code": ["000001.SZ", "000001.SZ", "000002.SZ"],
-        "trade_date": ["20240101", "20240102", "20240101"],
-        "open": [10.0, 10.5, 20.0],
-        "high": [10.5, 10.8, 20.5],
-        "low": [9.8, 10.2, 19.5],
-        "close": [10.2, 10.6, 20.2],
-        "vol": [1000.0, 1200.0, 2000.0],
-        "pct_chg": [1.0, 3.9, 1.0],
-    })
+    return pd.DataFrame(
+        {
+            "ts_code": ["000001.SZ", "000001.SZ", "000002.SZ"],
+            "trade_date": ["20240101", "20240102", "20240101"],
+            "open": [10.0, 10.5, 20.0],
+            "high": [10.5, 10.8, 20.5],
+            "low": [9.8, 10.2, 19.5],
+            "close": [10.2, 10.6, 20.2],
+            "vol": [1000.0, 1200.0, 2000.0],
+            "pct_chg": [1.0, 3.9, 1.0],
+        }
+    )
 
 
 @pytest.fixture
 def akshare_quotes():
     """模拟 AKShare 数据（有轻微差异）"""
-    return pd.DataFrame({
-        "ts_code": ["000001.SZ", "000001.SZ", "000002.SZ", "000003.SZ"],
-        "trade_date": ["20240101", "20240102", "20240101", "20240101"],
-        "open": [10.01, 10.49, 20.0, 30.0],  # 轻微差异
-        "high": [10.51, 10.79, 20.5, 30.5],
-        "low": [9.81, 10.21, 19.5, 29.5],
-        "close": [10.21, 10.59, 20.2, 30.2],
-        "vol": [1000.0, 1200.0, 2000.0, 3000.0],
-        "pct_chg": [1.0, 3.8, 1.0, 2.0],
-    })
+    return pd.DataFrame(
+        {
+            "ts_code": ["000001.SZ", "000001.SZ", "000002.SZ", "000003.SZ"],
+            "trade_date": ["20240101", "20240102", "20240101", "20240101"],
+            "open": [10.01, 10.49, 20.0, 30.0],  # 轻微差异
+            "high": [10.51, 10.79, 20.5, 30.5],
+            "low": [9.81, 10.21, 19.5, 29.5],
+            "close": [10.21, 10.59, 20.2, 30.2],
+            "vol": [1000.0, 1200.0, 2000.0, 3000.0],
+            "pct_chg": [1.0, 3.8, 1.0, 2.0],
+        }
+    )
 
 
 # ===== Full Pipeline Integration Tests =====
@@ -167,19 +185,23 @@ class TestDataValidationIntegration:
 
     def test_validation_with_large_discrepancy(self):
         """测试有较大差异的验证"""
-        df1 = pd.DataFrame({
-            "ts_code": ["000001.SZ"],
-            "trade_date": ["20240101"],
-            "close": [10.0],
-            "vol": [1000.0],
-        })
+        df1 = pd.DataFrame(
+            {
+                "ts_code": ["000001.SZ"],
+                "trade_date": ["20240101"],
+                "close": [10.0],
+                "vol": [1000.0],
+            }
+        )
 
-        df2 = pd.DataFrame({
-            "ts_code": ["000001.SZ"],
-            "trade_date": ["20240101"],
-            "close": [20.0],  # 差异 100%
-            "vol": [1000.0],
-        })
+        df2 = pd.DataFrame(
+            {
+                "ts_code": ["000001.SZ"],
+                "trade_date": ["20240101"],
+                "close": [20.0],  # 差异 100%
+                "vol": [1000.0],
+            }
+        )
 
         merged, report = validate_and_merge(df1, df2, tolerance=0.01)
 
@@ -248,16 +270,18 @@ class TestPriceAdjustmentIntegration:
     def test_qfq_adjustment_with_pipeline(self):
         """测试前复权与管道集成"""
         # 创建测试数据
-        df = pd.DataFrame({
-            "ts_code": ["000001.SZ"] * 5 + ["000002.SZ"] * 5,
-            "trade_date": ["20240101", "20240102", "20240103", "20240104", "20240105"] * 2,
-            "open": [10.0, 10.5, 11.0, 11.5, 12.0] * 2,
-            "high": [10.5, 11.0, 11.5, 12.0, 12.5] * 2,
-            "low": [9.5, 10.0, 10.5, 11.0, 11.5] * 2,
-            "close": [10.2, 10.8, 11.2, 11.8, 12.2] * 2,
-            "vol": [1000.0] * 10,
-            "adj_factor": [1.0, 1.0, 1.1, 1.1, 1.1] * 2,  # 第三天有除权
-        })
+        df = pd.DataFrame(
+            {
+                "ts_code": ["000001.SZ"] * 5 + ["000002.SZ"] * 5,
+                "trade_date": ["20240101", "20240102", "20240103", "20240104", "20240105"] * 2,
+                "open": [10.0, 10.5, 11.0, 11.5, 12.0] * 2,
+                "high": [10.5, 11.0, 11.5, 12.0, 12.5] * 2,
+                "low": [9.5, 10.0, 10.5, 11.0, 11.5] * 2,
+                "close": [10.2, 10.8, 11.2, 11.8, 12.2] * 2,
+                "vol": [1000.0] * 10,
+                "adj_factor": [1.0, 1.0, 1.1, 1.1, 1.1] * 2,  # 第三天有除权
+            }
+        )
 
         # 创建管道
         pipeline = ETLPipeline()
@@ -287,12 +311,14 @@ class TestEdgeCasesIntegration:
 
     def test_single_row_input(self):
         """测试单行输入"""
-        df = pd.DataFrame({
-            "ts_code": ["000001.SZ"],
-            "trade_date": ["20240101"],
-            "close": [10.0],
-            "vol": [1000.0],
-        })
+        df = pd.DataFrame(
+            {
+                "ts_code": ["000001.SZ"],
+                "trade_date": ["20240101"],
+                "close": [10.0],
+                "vol": [1000.0],
+            }
+        )
 
         pipeline = create_default_pipeline()
         pipeline.adjuster = None
@@ -303,12 +329,14 @@ class TestEdgeCasesIntegration:
 
     def test_all_nan_column(self):
         """测试全 NaN 列"""
-        df = pd.DataFrame({
-            "ts_code": ["000001.SZ", "000001.SZ"],
-            "trade_date": ["20240101", "20240102"],
-            "close": [np.nan, np.nan],
-            "vol": [1000.0, 1100.0],
-        })
+        df = pd.DataFrame(
+            {
+                "ts_code": ["000001.SZ", "000001.SZ"],
+                "trade_date": ["20240101", "20240102"],
+                "close": [np.nan, np.nan],
+                "vol": [1000.0, 1100.0],
+            }
+        )
 
         cleaner = MissingValueCleaner(strategy="drop")
         result = cleaner.clean(df)
@@ -318,12 +346,14 @@ class TestEdgeCasesIntegration:
 
     def test_mixed_data_types(self):
         """测试混合数据类型"""
-        df = pd.DataFrame({
-            "ts_code": ["000001.SZ", "000002.SZ"],
-            "trade_date": ["20240101", "20240102"],
-            "close": [10.0, 20.0],  # 数值类型
-            "vol": [1000.0, 2000.0],
-        })
+        df = pd.DataFrame(
+            {
+                "ts_code": ["000001.SZ", "000002.SZ"],
+                "trade_date": ["20240101", "20240102"],
+                "close": [10.0, 20.0],  # 数值类型
+                "vol": [1000.0, 2000.0],
+            }
+        )
 
         cleaner = OutlierCleaner()
         result = cleaner.clean(df)
@@ -344,13 +374,15 @@ class TestPerformance:
         np.random.seed(42)
         n = 10000
 
-        df = pd.DataFrame({
-            "ts_code": np.random.choice([f"00000{i}.SZ" for i in range(10)], n),
-            "trade_date": np.random.choice([f"2024010{i}" for i in range(10)], n),
-            "open": 10.0 + np.random.randn(n),
-            "close": 10.0 + np.random.randn(n),
-            "vol": 1000.0 + np.random.randn(n) * 100,
-        })
+        df = pd.DataFrame(
+            {
+                "ts_code": np.random.choice([f"00000{i}.SZ" for i in range(10)], n),
+                "trade_date": np.random.choice([f"2024010{i}" for i in range(10)], n),
+                "open": 10.0 + np.random.randn(n),
+                "close": 10.0 + np.random.randn(n),
+                "vol": 1000.0 + np.random.randn(n) * 100,
+            }
+        )
 
         pipeline = create_default_pipeline()
         pipeline.adjuster = None
@@ -423,17 +455,21 @@ class TestValidationReport:
 
     def test_anomaly_tracking(self):
         """测试异常追踪"""
-        df1 = pd.DataFrame({
-            "ts_code": ["000001.SZ"],
-            "trade_date": ["20240101"],
-            "close": [10.0],
-        })
+        df1 = pd.DataFrame(
+            {
+                "ts_code": ["000001.SZ"],
+                "trade_date": ["20240101"],
+                "close": [10.0],
+            }
+        )
 
-        df2 = pd.DataFrame({
-            "ts_code": ["000001.SZ"],
-            "trade_date": ["20240101"],
-            "close": [100.0],  # 巨大差异
-        })
+        df2 = pd.DataFrame(
+            {
+                "ts_code": ["000001.SZ"],
+                "trade_date": ["20240101"],
+                "close": [100.0],  # 巨大差异
+            }
+        )
 
         validator = DataValidator(tolerance=0.01)
         merged = validator.cross_validate(df1, df2)
@@ -443,3 +479,107 @@ class TestValidationReport:
         # 应该记录异常
         assert len(anomalies) > 0
         assert anomalies[0]["type"] == "numeric_mismatch"
+
+
+# ===== DateConverter Integration Tests =====
+
+
+class TestDateConverterIntegration:
+    """DateConverter 集成测试"""
+
+    def test_date_conversion_in_pipeline(self):
+        """测试日期转换在完整 ETL 管道中工作"""
+        # 模拟 Tushare 返回的原始数据（字符串格式）
+        raw_df = pd.DataFrame(
+            {
+                "ts_code": ["000001.SZ", "000002.SZ"],
+                "trade_date": ["20240101", "20240102"],
+                "open": [10.0, 11.0],
+                "close": [10.5, 11.5],
+            }
+        )
+
+        # 通过 ETL 管道处理
+        pipeline = create_minimal_pipeline()
+        result = pipeline.run(raw_df)
+
+        # 验证日期转换
+        assert isinstance(result["trade_date"].iloc[0], date)
+        assert result["trade_date"].iloc[0] == date(2024, 1, 1)
+
+    def test_date_conversion_with_stock_list(self):
+        """测试股票列表日期转换"""
+        # 模拟股票列表数据（包含 list_date 和 delist_date）
+        raw_df = pd.DataFrame(
+            {
+                "ts_code": ["000001.SZ", "000002.SZ"],
+                "name": ["平安银行", "万科A"],
+                "list_date": ["19910403", "19910129"],
+                "delist_date": [None, None],
+            }
+        )
+
+        # 使用 DateConverter
+        converter = DateConverter(columns=["list_date", "delist_date"])
+        result = converter.clean(raw_df)
+
+        # 验证日期转换
+        assert isinstance(result["list_date"].iloc[0], date)
+        assert result["list_date"].iloc[0] == date(1991, 4, 3)
+        assert pd.isna(result["delist_date"].iloc[0])
+
+    def test_date_conversion_with_mixed_formats(self):
+        """测试混合日期格式转换"""
+        raw_df = pd.DataFrame(
+            {
+                "ts_code": ["000001.SZ", "000002.SZ"],
+                "trade_date": ["20240101", "2024-01-02"],  # 混合格式
+                "close": [10.0, 11.0],
+            }
+        )
+
+        converter = DateConverter(columns=["trade_date"])
+        result = converter.clean(raw_df)
+
+        # YYYYMMDD 格式应该被正确转换
+        assert result["trade_date"].iloc[0] == date(2024, 1, 1)
+        # YYYY-MM-DD 格式也应该被正确转换（通过 fallback）
+        assert result["trade_date"].iloc[1] == date(2024, 1, 2) or pd.isna(
+            result["trade_date"].iloc[1]
+        )
+
+    def test_full_pipeline_with_date_conversion(self):
+        """测试带日期转换的完整管道"""
+        # 模拟真实的原始数据流
+        raw_df = pd.DataFrame(
+            {
+                "ts_code": ["000001.SZ"] * 3 + ["000002.SZ"] * 3,
+                "trade_date": [
+                    "20240101",
+                    "20240101",
+                    "20240102",
+                    "20240101",
+                    "20240101",
+                    "20240102",
+                ],
+                "open": [10.0, 10.0, 10.5, 20.0, 20.0, 20.5],  # 有重复
+                "close": [10.2, 10.2, 10.6, 20.2, 20.2, 20.6],
+                "vol": [1000.0, 1000.0, 1100.0, 2000.0, 2000.0, 2100.0],
+            }
+        )
+
+        # 使用默认管道（包含 DateConverter）
+        pipeline = create_default_pipeline()
+        pipeline.adjuster = None  # 禁用复权
+        pipeline.status_filter = None  # 禁用过滤
+
+        result = pipeline.run(raw_df)
+
+        # 1. 日期应该是 date 对象
+        assert isinstance(result["trade_date"].iloc[0], date)
+
+        # 2. 应该去重了
+        assert len(result) < len(raw_df)
+
+        # 3. 数据应该完整
+        assert all(result["close"].notna())

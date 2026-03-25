@@ -165,9 +165,7 @@ class TushareClient(BaseDataSource):
     def name(self) -> str:
         return "tushare"
 
-    def _rename_columns(
-        self, df: pd.DataFrame, field_map: dict[str, str]
-    ) -> pd.DataFrame:
+    def _rename_columns(self, df: pd.DataFrame, field_map: dict[str, str]) -> pd.DataFrame:
         """重命名列
 
         只保留 field_map 中定义的字段。
@@ -189,18 +187,16 @@ class TushareClient(BaseDataSource):
         # Tushare API 是同步的，使用 run_in_executor
         loop = asyncio.get_event_loop()
         df = await loop.run_in_executor(
-            None, lambda: self._pro.stock_basic(exchange="", list_status="L", fields=",".join(self.STOCK_LIST_MAP.keys()))
+            None,
+            lambda: self._pro.stock_basic(
+                exchange="", list_status="L", fields=",".join(self.STOCK_LIST_MAP.keys())
+            ),
         )
 
         result = self._rename_columns(df, self.STOCK_LIST_MAP)
 
         # 添加 is_active 字段
         result["is_active"] = True
-
-        # 转换日期字符串为 date 对象
-        for col in ["list_date", "delist_date"]:
-            if col in result.columns:
-                result[col] = pd.to_datetime(result[col], format="%Y%m%d", errors="coerce").dt.date
 
         logger.info(f"获取到 {len(result)} 条股票信息")
         return result
@@ -212,13 +208,9 @@ class TushareClient(BaseDataSource):
 
         loop = asyncio.get_event_loop()
         # 获取上证指数
-        df_sh = await loop.run_in_executor(
-            None, lambda: self._pro.index_basic(market="SSE")
-        )
+        df_sh = await loop.run_in_executor(None, lambda: self._pro.index_basic(market="SSE"))
         # 获取深证指数
-        df_sz = await loop.run_in_executor(
-            None, lambda: self._pro.index_basic(market="SZSE")
-        )
+        df_sz = await loop.run_in_executor(None, lambda: self._pro.index_basic(market="SZSE"))
 
         df = pd.concat([df_sh, df_sz], ignore_index=True)
         result = self._rename_columns(df, self.INDEX_LIST_MAP)
@@ -253,10 +245,6 @@ class TushareClient(BaseDataSource):
 
         result = self._rename_columns(df, self.DAILY_QUOTE_MAP)
 
-        # 转换日期字符串为 date 对象
-        if "trade_date" in result.columns:
-            result["trade_date"] = pd.to_datetime(result["trade_date"], format="%Y%m%d", errors="coerce").dt.date
-
         return result
 
     @retry_on_failure(max_retries=3)
@@ -286,10 +274,6 @@ class TushareClient(BaseDataSource):
 
         result = self._rename_columns(df, self.DAILY_QUOTE_MAP)
 
-        # 转换日期字符串为 date 对象
-        if "trade_date" in result.columns:
-            result["trade_date"] = pd.to_datetime(result["trade_date"], format="%Y%m%d", errors="coerce").dt.date
-
         return result
 
     @retry_on_failure(max_retries=3)
@@ -314,11 +298,6 @@ class TushareClient(BaseDataSource):
 
         result = self._rename_columns(df, self.TRADE_CAL_MAP)
 
-        # 转换日期字符串为 date 对象
-        for col in ["cal_date", "pretrade_date"]:
-            if col in result.columns:
-                result[col] = pd.to_datetime(result[col], format="%Y%m%d", errors="coerce").dt.date
-
         return result
 
     @retry_on_failure(max_retries=3)
@@ -330,9 +309,7 @@ class TushareClient(BaseDataSource):
         end_date: str | None = None,
     ) -> pd.DataFrame:
         """获取每日指标"""
-        logger.debug(
-            f"获取每日指标: ts_code={ts_code}, trade_date={trade_date}"
-        )
+        logger.debug(f"获取每日指标: ts_code={ts_code}, trade_date={trade_date}")
 
         loop = asyncio.get_event_loop()
         df = await loop.run_in_executor(
@@ -348,10 +325,6 @@ class TushareClient(BaseDataSource):
 
         result = self._rename_columns(df, self.DAILY_BASIC_MAP)
 
-        # 转换日期字符串为 date 对象
-        if "trade_date" in result.columns:
-            result["trade_date"] = pd.to_datetime(result["trade_date"], format="%Y%m%d", errors="coerce").dt.date
-
         return result
 
     @retry_on_failure(max_retries=3)
@@ -363,9 +336,7 @@ class TushareClient(BaseDataSource):
         period: str | None = None,
     ) -> pd.DataFrame:
         """获取财务指标"""
-        logger.debug(
-            f"获取财务指标: ts_code={ts_code}, period={period}"
-        )
+        logger.debug(f"获取财务指标: ts_code={ts_code}, period={period}")
 
         loop = asyncio.get_event_loop()
         df = await loop.run_in_executor(
@@ -391,9 +362,7 @@ class TushareClient(BaseDataSource):
         end_date: str | None = None,
     ) -> pd.DataFrame:
         """获取复权因子"""
-        logger.debug(
-            f"获取复权因子: ts_code={ts_code}, trade_date={trade_date}"
-        )
+        logger.debug(f"获取复权因子: ts_code={ts_code}, trade_date={trade_date}")
 
         loop = asyncio.get_event_loop()
         df = await loop.run_in_executor(

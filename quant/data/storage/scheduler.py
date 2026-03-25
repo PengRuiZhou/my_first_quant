@@ -14,6 +14,7 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from loguru import logger
 
+from quant.data.etl import create_minimal_pipeline
 from quant.data.sources.base import BaseDataSource
 from quant.data.sources.tushare_client import TushareClient
 
@@ -79,12 +80,14 @@ class DataScheduler:
         """
         jobs = []
         for job in self._scheduler.get_jobs():
-            jobs.append({
-                "id": job.id,
-                "name": job.name or job.id,
-                "next_run": job.next_run_time,
-                "trigger": str(job.trigger),
-            })
+            jobs.append(
+                {
+                    "id": job.id,
+                    "name": job.name or job.id,
+                    "next_run": job.next_run_time,
+                    "trigger": str(job.trigger),
+                }
+            )
         return jobs
 
     def get_job(self, job_id: str) -> Job | None:
@@ -413,15 +416,3 @@ class DataScheduler:
     def is_running(self) -> bool:
         """调度器是否在运行"""
         return self._is_running
-
-
-def create_minimal_pipeline():
-    """创建最小 ETL 管道（用于调度器）"""
-    from quant.data.etl.cleaners import DuplicateCleaner, MissingValueCleaner
-    from quant.data.etl.pipeline import ETLPipeline
-
-    return (
-        ETLPipeline()
-        .add_cleaner(DuplicateCleaner())
-        .add_cleaner(MissingValueCleaner(strategy="ffill", limit=5))
-    )

@@ -8,9 +8,9 @@ Example:
     >>> df_cleaned = pipeline.run(df_raw)
 """
 
-from .base import BaseCleaner, BaseFilter, BaseTransformer, CleaningStats
-from .cleaners import DuplicateCleaner, MissingValueCleaner, OutlierCleaner
 from .adjust import PriceAdjuster, adjust_volume, calculate_adj_factor
+from .base import BaseCleaner, BaseFilter, BaseTransformer, CleaningStats
+from .cleaners import DateConverter, DuplicateCleaner, MissingValueCleaner, OutlierCleaner
 from .filters import StockStatusFilter, TradeableFilter
 from .pipeline import (
     ETLPipeline,
@@ -26,6 +26,7 @@ __all__ = [
     "BaseTransformer",
     "CleaningStats",
     # Cleaners
+    "DateConverter",
     "MissingValueCleaner",
     "DuplicateCleaner",
     "OutlierCleaner",

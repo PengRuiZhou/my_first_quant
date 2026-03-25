@@ -3,14 +3,12 @@
 使用 mock 测试调度器功能，避免真实任务执行。
 """
 
-from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pandas as pd
 import pytest
 
 from quant.data.storage.scheduler import DataScheduler, create_minimal_pipeline
-
 
 # ===== Fixtures =====
 
@@ -32,33 +30,53 @@ def mock_repository():
 def mock_data_source():
     """创建模拟数据源"""
     source = MagicMock()
-    source.get_stock_list = AsyncMock(return_value=pd.DataFrame({
-        "ts_code": ["000001.SZ", "000002.SZ"],
-        "symbol": ["000001", "000002"],
-        "name": ["平安银行", "万科A"],
-    }))
-    source.get_daily_quotes = AsyncMock(return_value=pd.DataFrame({
-        "ts_code": ["000001.SZ", "000002.SZ"],
-        "trade_date": ["20240101", "20240101"],
-        "open": [10.0, 20.0],
-        "close": [10.5, 20.5],
-        "vol": [1000.0, 2000.0],
-    }))
-    source.get_daily_basic = AsyncMock(return_value=pd.DataFrame({
-        "ts_code": ["000001.SZ"],
-        "trade_date": ["20240101"],
-        "pe": [10.0],
-    }))
-    source.get_trade_calendar = AsyncMock(return_value=pd.DataFrame({
-        "exchange": ["SSE"],
-        "cal_date": ["20240101"],
-        "is_open": [1],
-    }))
-    source.get_index_quotes = AsyncMock(return_value=pd.DataFrame({
-        "ts_code": ["000001.SH"],
-        "trade_date": ["20240101"],
-        "close": [3000.0],
-    }))
+    source.get_stock_list = AsyncMock(
+        return_value=pd.DataFrame(
+            {
+                "ts_code": ["000001.SZ", "000002.SZ"],
+                "symbol": ["000001", "000002"],
+                "name": ["平安银行", "万科A"],
+            }
+        )
+    )
+    source.get_daily_quotes = AsyncMock(
+        return_value=pd.DataFrame(
+            {
+                "ts_code": ["000001.SZ", "000002.SZ"],
+                "trade_date": ["20240101", "20240101"],
+                "open": [10.0, 20.0],
+                "close": [10.5, 20.5],
+                "vol": [1000.0, 2000.0],
+            }
+        )
+    )
+    source.get_daily_basic = AsyncMock(
+        return_value=pd.DataFrame(
+            {
+                "ts_code": ["000001.SZ"],
+                "trade_date": ["20240101"],
+                "pe": [10.0],
+            }
+        )
+    )
+    source.get_trade_calendar = AsyncMock(
+        return_value=pd.DataFrame(
+            {
+                "exchange": ["SSE"],
+                "cal_date": ["20240101"],
+                "is_open": [1],
+            }
+        )
+    )
+    source.get_index_quotes = AsyncMock(
+        return_value=pd.DataFrame(
+            {
+                "ts_code": ["000001.SH"],
+                "trade_date": ["20240101"],
+                "close": [3000.0],
+            }
+        )
+    )
     source.close = AsyncMock()
     return source
 
@@ -222,6 +240,7 @@ class TestJobManagement:
 
     def test_get_jobs(self, scheduler):
         """测试获取所有任务"""
+
         async def dummy_task():
             pass
 
@@ -305,7 +324,9 @@ class TestTaskImplementation:
         mock_repository.upsert_daily_quotes.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_update_daily_quotes_empty_data(self, scheduler, mock_data_source, mock_repository):
+    async def test_update_daily_quotes_empty_data(
+        self, scheduler, mock_data_source, mock_repository
+    ):
         """测试更新日线行情（空数据）"""
         mock_data_source.get_daily_quotes = AsyncMock(return_value=pd.DataFrame())
 
@@ -404,18 +425,20 @@ class TestCreateMinimalPipeline:
         pipeline = create_minimal_pipeline()
 
         assert pipeline is not None
-        assert len(pipeline.cleaners) == 2
+        assert len(pipeline.cleaners) == 3  # DateConverter + DuplicateCleaner + MissingValueCleaner
         assert pipeline.adjuster is None
 
     def test_pipeline_can_run(self):
         """测试管道可以运行"""
         pipeline = create_minimal_pipeline()
 
-        df = pd.DataFrame({
-            "ts_code": ["000001.SZ", "000001.SZ"],
-            "trade_date": ["20240101", "20240102"],
-            "close": [10.0, 10.5],
-        })
+        df = pd.DataFrame(
+            {
+                "ts_code": ["000001.SZ", "000001.SZ"],
+                "trade_date": ["20240101", "20240102"],
+                "close": [10.0, 10.5],
+            }
+        )
 
         result = pipeline.run(df)
 
@@ -448,6 +471,7 @@ class TestEdgeCases:
 
     def test_scheduler_replace_existing_job(self, scheduler):
         """测试替换已存在的任务"""
+
         async def task1():
             pass
 
