@@ -169,6 +169,17 @@
   - daily_quote: 6,000 条
 - **状态：** complete
 
+### 阶段 3.2.3：DateConverter ETL 重构
+- [ ] 创建 DateConverter 清洗器类
+- [ ] 支持多种日期格式（YYYYMMDD, YYYY-MM-DD）
+- [ ] 自动检测日期列
+- [ ] 更新 ETL Pipeline 包含 DateConverter
+- [ ] 移除 TushareClient 中的日期转换代码
+- [ ] 添加单元测试和集成测试
+- **设计文档：** [2026-03-25-date-converter-etl.md](docs/superpowers/plans/2026-03-25-date-converter-etl.md)
+- **架构决策：** 日期转换从数据源层移至 ETL 层，统一处理
+- **状态：** pending
+
 ### 阶段 4：策略模块
 - [ ] Verses 因子库
   - [ ] 基础操作符（rank, quantile, zscore）

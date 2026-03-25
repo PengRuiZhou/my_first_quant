@@ -275,11 +275,30 @@
 ## 五问重启检查
 | 问题 | 答案 |
 |------|------|
-| 我在哪里？ | 阶段 3.2.2 数据初始化完成，已获取 3 年历史数据 |
-| 我要去哪里？ | 阶段 4：策略模块（Verses 因子库 → Lanetech 模型 → Alpha → 优化器） |
+| 我在哪里？ | 阶段 3.2.3 DateConverter ETL 重构计划已创建，待执行 |
+| 我要去哪里？ | 执行 DateConverter 实现计划 → 阶段 4：策略模块 |
 | 目标是什么？ | 构建 A 股量化交易框架，支持因子研究、回测和实盘 |
-| 我学到了什么？ | 见 findings.md（日期转换、asyncpg 参数限制、greenlet 依赖） |
-| 我做了什么？ | Stage 3.2 完成（环境配置 + 数据初始化：5493 股票 + 1096 交易日 + 6000 日线） |
+| 我学到了什么？ | 见 findings.md（日期转换应放在 ETL 层而非数据源层） |
+| 我做了什么？ | 创建 DateConverter ETL 重构实现计划（8 任务，21 步骤） |
+
+---
+
+### 阶段 3.2.3：DateConverter ETL 重构计划
+- **状态：** plan_created
+- **开始时间：** 2026-03-25
+- 已采取的行动：
+  - 探索现有 ETL 代码结构（cleaners.py, pipeline.py, base.py）
+  - 识别 TushareClient 中的日期转换代码位置
+  - 编写 DateConverter 实现计划（8 任务，21 步骤）
+  - 通过计划审查（修复 2 个关键问题）
+- 创建/修改的文件：
+  - `docs/superpowers/plans/2026-03-25-date-converter-etl.md` - 实现计划
+  - `task_plan.md` - 添加阶段 3.2.3
+- 待执行：
+  - 实现 DateConverter 清洗器
+  - 更新 ETL Pipeline
+  - 移除 TushareClient 日期转换代码
+  - 添加测试
 
 ---
 *完成每个阶段或遇到错误后更新*
