@@ -323,24 +323,20 @@ class TushareClient(BaseDataSource):
 
         # 如果没有指定 market 或 ts_code，返回常用指数列表
         if market is None and ts_code is None:
-            # 从 API 获取这些指数的基本信息
+            # 从 API 逐个获取这些指数的基本信息
             all_indexes = []
             loop = asyncio.get_event_loop()
 
-            # 分批获取（每次最多50个代码）
-            codes = self.COMMON_INDEX_CODES
-            for i in range(0, len(codes), 50):
-                batch = codes[i : i + 50]
-                batch_str = ",".join(batch)
+            for code in self.COMMON_INDEX_CODES:
                 try:
                     df = await loop.run_in_executor(
                         None,
-                        lambda b=batch_str: self._pro.index_basic(ts_code=b),
+                        lambda c=code: self._pro.index_basic(ts_code=c),
                     )
                     if not df.empty:
                         all_indexes.append(df)
                 except Exception as e:
-                    logger.warning(f"获取指数批次失败: {e}")
+                    logger.warning(f"获取指数 {code} 失败: {e}")
 
             if all_indexes:
                 result = pd.concat(all_indexes, ignore_index=True)
