@@ -450,14 +450,13 @@ TUSHARE_API_URL=http://lianghua.nanyangqiankun.top
 **Tushare 日期字符串转换**：
 - Tushare API 返回日期为字符串格式（如 `'20240101'`）
 - SQLAlchemy async 需要正确的 `date` 对象，不能是字符串
-- 在 `TushareClient` 各方法中添加日期转换：
-```python
-# 转换日期字符串为 date 对象
-if "trade_date" in result.columns:
-    result["trade_date"] = pd.to_datetime(
-        result["trade_date"], format="%Y%m%d", errors="coerce"
-    ).dt.date
-```
+- **重构决策**：日期转换移至 ETL 层（DateConverter），数据源层只返回原始字符串
+- DateConverter 设计：
+  - 支持多种日期格式（YYYYMMDD, YYYY-MM-DD, YYYY/MM/DD 等）
+  - 自动检测日期列（后缀：_date, date, _time, time, datetime, timestamp）
+  - 大小写不敏感匹配
+  - 逐行解析，支持混合格式
+  - 可配置默认格式（default_format）
 
 **asyncpg 参数数量限制**：
 - asyncpg 单次查询最多支持 32767 个参数

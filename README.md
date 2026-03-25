@@ -175,7 +175,7 @@ my_first_quant/              # 项目根目录
 │       ├── scheduler.pid    # 进程 ID
 │       ├── scheduler.log    # 日志文件
 │       └── runner.py        # 运行脚本
-├── tests/                   # 测试（135 个测试用例）
+├── tests/                   # 测试（151 个测试用例）
 ├── docs/                    # 文档
 │   └── superpowers/         # 设计文档和实现计划
 ├── pyproject.toml           # 依赖管理

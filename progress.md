@@ -113,7 +113,7 @@
   - **tests/data/test_scheduler.py**（调度器测试）✅
   - **tests/data/test_integration.py**（集成测试）✅
 - 测试结果：
-  - **135 passed, 5 skipped, 8 warnings in 0.60s**
+  - **151 passed, 5 skipped, 8 warnings in 0.69s**
   - 测试覆盖：ETL 清洗器、数据源、数据仓库、调度器、集成流程
 - 已完成文件：
   - ~~quant/data/sources/*~~ ✅
@@ -279,26 +279,49 @@
 | 我要去哪里？ | 执行 DateConverter 实现计划 → 阶段 4：策略模块 |
 | 目标是什么？ | 构建 A 股量化交易框架，支持因子研究、回测和实盘 |
 | 我学到了什么？ | 见 findings.md（日期转换应放在 ETL 层而非数据源层） |
-| 我做了什么？ | 创建 DateConverter ETL 重构实现计划（8 任务，21 步骤） |
+| 我做了什么？ | 完成 DateConverter ETL 重构（151 测试通过） |
 
 ---
 
-### 阶段 3.2.3：DateConverter ETL 重构计划
-- **状态：** plan_created
+### 阶段 3.2.3：DateConverter ETL 重构
+- **状态：** complete
 - **开始时间：** 2026-03-25
+- **完成时间：** 2026-03-26
 - 已采取的行动：
   - 探索现有 ETL 代码结构（cleaners.py, pipeline.py, base.py）
   - 识别 TushareClient 中的日期转换代码位置
   - 编写 DateConverter 实现计划（8 任务，21 步骤）
   - 通过计划审查（修复 2 个关键问题）
-- 创建/修改的文件：
-  - `docs/superpowers/plans/2026-03-25-date-converter-etl.md` - 实现计划
-  - `task_plan.md` - 添加阶段 3.2.3
-- 待执行：
-  - 实现 DateConverter 清洗器
-  - 更新 ETL Pipeline
+  - **使用 Subagent-Driven Development 执行计划**
+  - 实现 DateConverter 清洗器（12 个单元测试）
+  - 更新 ETL Pipeline（create_default/minimal/strict_pipeline）
   - 移除 TushareClient 日期转换代码
-  - 添加测试
+  - 更新 scheduler.py 使用 ETL 模块的 create_minimal_pipeline
+  - 添加集成测试（4 个测试）
+  - **改进 DateConverter**：
+    - 添加 default_format 参数支持统一日期格式
+    - 支持混合日期格式（YYYYMMDD, YYYY-MM-DD, YYYY/MM/DD）
+    - 添加更多日期列后缀（datetime, timestamp）
+    - 大小写不敏感匹配
+    - 修复 pandas 3.0 混合格式解析问题
+- 创建/修改的文件：
+  - `quant/data/etl/cleaners.py` - 添加 DateConverter 类
+  - `quant/data/etl/__init__.py` - 导出 DateConverter
+  - `quant/data/etl/pipeline.py` - 更新 pipeline factory
+  - `quant/data/sources/tushare_client.py` - 移除日期转换代码
+  - `quant/data/storage/scheduler.py` - 使用 ETL 模块 pipeline
+  - `tests/data/test_etl.py` - 添加 12 个 DateConverter 测试
+  - `tests/data/test_integration.py` - 添加 4 个集成测试
+  - `tests/data/test_scheduler.py` - 更新 cleaner 数量断言
+- 提交记录：
+  - `b51fa30` - refactor(etl): move date conversion from data sources to ETL layer
+  - `ceba3e9` - feat(etl): improve DateConverter with better format handling
+- 测试结果：
+  - **151 passed, 5 skipped, 8 warnings in 0.69s**
+- 架构改进：
+  - 日期转换从数据源层移至 ETL 层
+  - 数据源只负责获取原始数据
+  - 类型转换统一在 ETL 层处理
 
 ---
 *完成每个阶段或遇到错误后更新*
