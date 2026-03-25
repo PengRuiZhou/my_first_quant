@@ -336,6 +336,41 @@
   - **DailyBasic 模型增强**：添加 `ps_ttm`（市销率TTM）和 `dv_ratio`（股息率）字段
   - **IndexInfo 模型增强**：添加 `index_type`、`category`、`exp_date` 字段
   - **TushareClient 增强**：
+    - 添加 `COMMON_INDEX_CODES` 常量（50个常用指数）
+    - 添加 `get_index_list()` 方法获取指数基本信息
+    - 修复：`index_basic` API 不支持批量 ts_code，改为逐个获取
+  - **scheduler.py 更新**：
+    - `init_historical_data` 现在获取指数列表
+    - 指数行情扩展为50个常用指数（宽基+行业+主题）
+  - **数据库重建**：`quant db drop && quant db create`
+  - **安装 TablePlus**：PostgreSQL GUI 工具
+- 创建/修改的文件：
+  - `quant/data/models/financial.py` - 添加 ps_ttm, dv_ratio 字段
+  - `quant/data/models/stock.py` - 添加 index_type, category, exp_date 字段
+  - `quant/data/sources/tushare_client.py` - 添加 get_index_list() + COMMON_INDEX_CODES
+  - `quant/data/storage/scheduler.py` - 更新 init_historical_data
+  - `progress.md`, `findings.md` - 更新文档
+- 提交记录：
+  - `c3cbb05` - feat(data): add index list support and enhance models
+  - `49c1042` - fix(data): use single ts_code for index_basic API
+- 数据初始化结果：
+  | 表 | 记录数 |
+  |---|-------|
+  | stock_info | 5,493 |
+  | index_info | 26 |
+  | trade_calendar | 1,096 |
+  | daily_quote | 6,000 |
+  | daily_basic | 6,000 |
+  | index_daily_quote | 18,852 |
+
+### 阶段 3.2.4：数据模型增强 + 指数列表
+- **状态：** complete
+- **开始时间：** 2026-03-26
+- **完成时间：** 2026-03-26
+- 已采取的行动：
+  - **DailyBasic 模型增强**：添加 `ps_ttm`（市销率TTM）和 `dv_ratio`（股息率）字段
+  - **IndexInfo 模型增强**：添加 `index_type`、`category`、`exp_date` 字段
+  - **TushareClient 增强**：
     - 添加 `COMMON_INDEX_CODES` 常量（约50个常用指数）
     - 添加 `get_index_list()` 方法获取指数基本信息
   - **scheduler.py 更新**：

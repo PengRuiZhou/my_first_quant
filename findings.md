@@ -518,7 +518,8 @@ for i in range(0, len(records), batch_size):
 
 **get_index_list() 实现策略**：
 - 如果未指定 market 或 ts_code，返回预设的 50 个常用指数
-- 分批获取（每次最多 50 个代码），避免 API 限制
+- **注意**：`index_basic` API 不支持批量 ts_code（传入多个代码返回空结果）
+- 需要逐个代码调用 API，然后合并结果
 - 使用 `fullname` → `full_name` 列名映射
 
 **数据初始化结果**：
