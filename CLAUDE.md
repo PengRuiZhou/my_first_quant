@@ -161,9 +161,14 @@ make format                 # 格式化
 - 两者都是同步 API，使用 `asyncio.run_in_executor` 包装为异步
 - AKShare 接口名可能变化，使用 `getattr` 动态调用
 
+**Tushare 自定义 API**：
+- 支持 `TUSHARE_API_URL` 配置自定义 API 地址（如 lianghua 镜像）
+- 使用 `setattr(pro, "_DataApi__http_url", url)` 设置私有属性
+
 **Pylance 类型提示**：
 - AKShare 无完整类型存根，部分警告可忽略
 - 使用 `getattr(ak, "func_name", None)` 动态调用避免类型错误
+- 使用 `setattr()` 设置私有属性避免类型警告
 
 ## CLI Commands
 

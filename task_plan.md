@@ -147,8 +147,9 @@
 - [x] 修复 pydantic-settings 嵌套模型环境变量加载问题
 - [x] 修复数据库密码 URL 编码问题（`@` 符号）
 - [x] 创建数据库表（11 个表）
-- [ ] 配置 Tushare API Token（用户待完成）
-- **状态：** complete（Tushare Token 待用户注册后配置）
+- [x] 配置 Tushare API Token
+- [x] 配置自定义 Tushare API URL（lianghua 镜像）
+- **状态：** complete
 
 ### 阶段 4：策略模块
 - [ ] Verses 因子库

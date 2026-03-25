@@ -437,6 +437,16 @@ def url(self) -> str:
 - `factor_data` - 因子数据
 - `factor_statistics` - 因子统计
 
+**Tushare 自定义 API 配置**：
+- 支持通过 `TUSHARE_API_URL` 配置自定义 API 地址
+- 使用 `setattr()` 设置私有属性避免 Pylance 类型警告
+- 配置示例：
+```bash
+# .env
+TUSHARE_TOKEN=your_token
+TUSHARE_API_URL=http://lianghua.nanyangqiankun.top
+```
+
 ## Stage 2 补充：项目骨架
 
 ### 数据库 Schema 设计

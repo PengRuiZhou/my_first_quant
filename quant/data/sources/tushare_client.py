@@ -137,14 +137,16 @@ class TushareClient(BaseDataSource):
         "adj_factor": "adj_factor",
     }
 
-    def __init__(self, token: str | None = None):
+    def __init__(self, token: str | None = None, api_url: str | None = None):
         """初始化 Tushare 客户端
 
         Args:
             token: Tushare API Token，为空则从配置读取
+            api_url: 自定义 API 地址，为空则从配置读取
         """
         settings = get_settings()
         self._token = token or settings.tushare.token
+        self._api_url = api_url or settings.tushare.api_url
         self._timeout = settings.tushare.timeout
         self._retry_times = settings.tushare.retry_times
 
@@ -154,6 +156,11 @@ class TushareClient(BaseDataSource):
         # 初始化 pro API
         ts.set_token(self._token)
         self._pro = ts.pro_api()
+
+        # 设置自定义 API URL（如果配置了非默认值）
+        if self._api_url and self._api_url != "http://api.tushare.pro":
+            setattr(self._pro, "_DataApi__http_url", self._api_url)
+            logger.info(f"使用自定义 Tushare API: {self._api_url}")
 
     @property
     def name(self) -> str:

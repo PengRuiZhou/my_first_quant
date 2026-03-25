@@ -173,6 +173,7 @@
 | 2026-03-22 Stage3 Phase3 | Pylance: `result.rowcount` 属性不存在 | 1 | repository.py: 使用 `getattr(result, "rowcount", 0) or 0` 避免 Pylance 类型错误 |
 | 2026-03-25 Stage3.2 | pydantic-settings 嵌套模型不加载 .env | 2 | 在 DatabaseConfig/TushareConfig 中添加 `env_file=".env"` 配置 |
 | 2026-03-25 Stage3.2 | 数据库密码 `@` 符号破坏 URL 解析 | 1 | 使用 `urllib.parse.quote_plus()` 对密码进行 URL 编码 |
+| 2026-03-25 Stage3.2.1 | Pylance: `_DataApi__http_url` 属性未知 | 1 | tushare_client.py: 使用 `setattr()` 代替直接属性访问 |
 
 ### 阶段 3.1：CLI 模块化重构
 - **状态：** complete
@@ -235,16 +236,28 @@
   - index_daily_quote, trade_calendar, financial_indicator
   - daily_basic, factor_definition, factor_data, factor_statistics
 - 待完成：
-  - 用户注册 Tushare 并配置 Token（访问 https://tushare.pro/register）
+  - ~~用户注册 Tushare 并配置 Token~~ ✅ 已配置
+
+### 阶段 3.2.1：Tushare API 配置
+- **状态：** complete
+- **开始时间：** 2026-03-25
+- **完成时间：** 2026-03-25
+- 已采取的行动：
+  - 配置 Tushare Token 和自定义 API URL
+  - 修改 TushareClient 支持自定义 API 地址
+  - 使用 `setattr()` 设置私有属性避免 Pylance 类型警告
+- 创建/修改的文件：
+  - `.env` - 配置 TUSHARE_TOKEN 和 TUSHARE_API_URL
+  - `quant/data/sources/tushare_client.py` - 新增 api_url 参数支持
 
 ## 五问重启检查
 | 问题 | 答案 |
 |------|------|
-| 我在哪里？ | 阶段 3.2 环境配置完成，数据库表已创建，待配置 Tushare Token |
+| 我在哪里？ | 阶段 3.2 环境配置完成，Tushare API 已配置，可开始获取数据 |
 | 我要去哪里？ | 阶段 4：策略模块（Verses 因子库 → Lanetech 模型 → Alpha → 优化器） |
 | 目标是什么？ | 构建 A 股量化交易框架，支持因子研究、回测和实盘 |
-| 我学到了什么？ | 见 findings.md（pydantic-settings 嵌套模型加载、URL 编码、PostgreSQL 安装配置） |
-| 我做了什么？ | Stage 3.2 完成（PostgreSQL 安装 + 数据库创建 + asyncpg 安装 + 表创建 + 2 个 bug 修复） |
+| 我学到了什么？ | 见 findings.md（Tushare 自定义 API 配置、setattr 绕过 Pylance 警告） |
+| 我做了什么？ | Stage 3.2 完成 + Tushare API 配置（自定义 URL + Token） |
 
 ---
 *完成每个阶段或遇到错误后更新*
