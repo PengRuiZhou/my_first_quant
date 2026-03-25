@@ -363,9 +363,13 @@ class DataScheduler:
         stats: dict[str, int] = {}
 
         try:
+            pipeline = create_minimal_pipeline()
+
             # 1. 股票列表
             logger.info("获取股票列表...")
             stock_df = await self.data_source.get_stock_list()
+            if not stock_df.empty:
+                stock_df = pipeline.run(stock_df)
             stats["stock_list"] = await self.repository.upsert_stock_info(stock_df)
 
             # 2. 交易日历
@@ -375,6 +379,8 @@ class DataScheduler:
                 start_date=start_date.strftime("%Y%m%d"),
                 end_date=end_date.strftime("%Y%m%d"),
             )
+            if not cal_df.empty:
+                cal_df = pipeline.run(cal_df)
             stats["trade_calendar"] = await self.repository.upsert_trade_calendar(cal_df)
 
             # 3. 日线行情（分批获取）
@@ -384,7 +390,6 @@ class DataScheduler:
                 end_date=end_date.strftime("%Y%m%d"),
             )
             if not quotes_df.empty:
-                pipeline = create_minimal_pipeline()
                 quotes_df = pipeline.run(quotes_df)
             stats["daily_quotes"] = await self.repository.upsert_daily_quotes(quotes_df)
 
@@ -394,15 +399,42 @@ class DataScheduler:
                 start_date=start_date.strftime("%Y%m%d"),
                 end_date=end_date.strftime("%Y%m%d"),
             )
+            if not basic_df.empty:
+                basic_df = pipeline.run(basic_df)
             stats["daily_basic"] = await self.repository.upsert_daily_basic(basic_df)
 
-            # 5. 指数行情
+            # 5. 指数行情（需指定指数代码）
             logger.info("获取指数行情...")
-            index_df = await self.data_source.get_index_quotes(
-                start_date=start_date.strftime("%Y%m%d"),
-                end_date=end_date.strftime("%Y%m%d"),
-            )
-            stats["index_quotes"] = await self.repository.upsert_index_quotes(index_df)
+            # 常见 A 股指数
+            index_codes = [
+                "000001.SH",  # 上证综指
+                "000300.SH",  # 沪深300
+                "000016.SH",  # 上证50
+                "000905.SH",  # 中证500
+                "399001.SZ",  # 深证成指
+                "399006.SZ",  # 创业板指
+            ]
+            all_index_quotes = []
+            for idx_code in index_codes:
+                try:
+                    idx_df = await self.data_source.get_index_quotes(
+                        ts_code=idx_code,
+                        start_date=start_date.strftime("%Y%m%d"),
+                        end_date=end_date.strftime("%Y%m%d"),
+                    )
+                    if not idx_df.empty:
+                        all_index_quotes.append(idx_df)
+                except Exception as e:
+                    logger.warning(f"获取指数 {idx_code} 失败: {e}")
+
+            if all_index_quotes:
+                import pandas as pd
+
+                index_df = pd.concat(all_index_quotes, ignore_index=True)
+                index_df = pipeline.run(index_df)
+                stats["index_quotes"] = await self.repository.upsert_index_quotes(index_df)
+            else:
+                stats["index_quotes"] = 0
 
             logger.info(f"历史数据初始化完成: {stats}")
 

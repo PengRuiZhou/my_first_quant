@@ -94,13 +94,20 @@ class DataRepository:
         if df.empty:
             return 0
 
+        # 获取模型的有效列名（过滤掉不在模型中的列）
+        model_columns = set(c.name for c in model_class.__table__.columns)
+
         # 转换 DataFrame 为字典列表
         records = df.to_dict(orient="records")
 
-        # 处理 NaN 值
+        # 处理 NaN 值，并过滤未知列
         cleaned_records = []
         for record in records:
-            cleaned = {k: (None if pd.isna(v) else v) for k, v in record.items()}
+            cleaned = {
+                k: (None if pd.isna(v) else v)
+                for k, v in record.items()
+                if k in model_columns
+            }
             cleaned_records.append(cleaned)
 
         # 分批插入，避免 asyncpg 参数数量限制 (32767)
