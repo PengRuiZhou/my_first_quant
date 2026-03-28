@@ -15,10 +15,12 @@ def init_data(
 
     获取指定年数的历史数据，包括:
     - 股票列表
+    - 指数列表
     - 交易日历
     - 日线行情
     - 每日指标
     - 指数行情
+    - 财务指标
     """
     from quant.data.sources.tushare_client import TushareClient
     from quant.data.storage.repository import DataRepository

@@ -13,7 +13,7 @@ from quant.cli.console import console
 def fetch(
     data_type: str = Argument(
         ...,
-        help="数据类型: stock_list/daily/index/basic/calendar/financial",
+        help="数据类型: all/stock_list/index_list/daily/index/basic/calendar/financial",
     ),
     start_date: str | None = Option(None, "--start", "-s", help="开始日期 (YYYYMMDD)"),
     end_date: str | None = Option(None, "--end", "-e", help="结束日期 (YYYYMMDD)"),
@@ -22,14 +22,19 @@ def fetch(
     """获取数据
 
     支持的数据类型:
+    - all: 更新所有数据（增量更新）
     - stock_list: 股票列表
+    - index_list: 指数列表
     - daily: 日线行情
     - index: 指数行情
     - basic: 每日指标
     - calendar: 交易日历
     - financial: 财务指标
     """
-    _run_fetch(data_type, start_date, end_date, source)
+    if data_type == "all":
+        _run_fetch_all(start_date, end_date, source)
+    else:
+        _run_fetch(data_type, start_date, end_date, source)
 
 
 def _run_fetch(
@@ -63,6 +68,11 @@ def _run_fetch(
                 df = await data_source.get_stock_list()
                 count = await repository.upsert_stock_info(df)
                 console.print(f"[green]股票列表更新完成，插入 {count} 条记录[/green]")
+
+            elif data_type == "index_list":
+                df = await data_source.get_index_list()
+                count = await repository.upsert_index_info(df)
+                console.print(f"[green]指数列表更新完成，插入 {count} 条记录[/green]")
 
             elif data_type == "daily":
                 df = await data_source.get_daily_quotes(start_date=start_date, end_date=end_date)
@@ -99,7 +109,7 @@ def _run_fetch(
             else:
                 console.print(f"[red]未知数据类型: {data_type}[/red]")
                 console.print(
-                    "支持的数据类型: stock_list, daily, index, basic, calendar, financial"
+                    "支持的数据类型: all, stock_list, index_list, daily, index, basic, calendar, financial"
                 )
 
         except Exception as e:
@@ -107,3 +117,87 @@ def _run_fetch(
             raise
 
     asyncio.run(_fetch_async())
+
+
+def _run_fetch_all(
+    start_date: str | None,
+    end_date: str | None,
+    source: str,
+) -> None:
+    """批量更新所有数据"""
+    from quant.data.etl.cleaners import DuplicateCleaner, MissingValueCleaner
+    from quant.data.etl.pipeline import ETLPipeline
+    from quant.data.sources.tushare_client import TushareClient
+    from quant.data.storage.repository import DataRepository
+
+    async def _fetch_all_async():
+        data_source = TushareClient()
+        repository = DataRepository()
+
+        pipeline = (
+            ETLPipeline()
+            .add_cleaner(DuplicateCleaner())
+            .add_cleaner(MissingValueCleaner(strategy="ffill", limit=5))
+        )
+
+        console.print(f"[blue]开始批量更新所有数据（来源: {source}）...[/blue]")
+        results: list[tuple[str, int]] = []
+
+        # 定义要更新的数据类型及其获取函数
+        fetch_tasks = [
+            ("股票列表", "stock_list", lambda: data_source.get_stock_list()),
+            ("指数列表", "index_list", lambda: data_source.get_index_list()),
+            ("交易日历", "calendar", lambda: data_source.get_trade_calendar(
+                exchange="SSE", start_date=start_date, end_date=end_date
+            )),
+            ("日线行情", "daily", lambda: data_source.get_daily_quotes(
+                start_date=start_date, end_date=end_date
+            )),
+            ("指数行情", "index", lambda: data_source.get_index_quotes(
+                start_date=start_date, end_date=end_date
+            )),
+            ("每日指标", "basic", lambda: data_source.get_daily_basic(
+                start_date=start_date, end_date=end_date
+            )),
+            ("财务指标", "financial", lambda: data_source.get_financial_indicator(
+                start_date=start_date, end_date=end_date
+            )),
+        ]
+
+        for name, data_type, fetch_func in fetch_tasks:
+            try:
+                console.print(f"[dim]正在获取 {name}...[/dim]")
+                df = await fetch_func()
+
+                if data_type in ("daily", "stock_list") and not df.empty:
+                    df = pipeline.run(df)
+
+                # 根据数据类型调用对应的 upsert 方法
+                upsert_map = {
+                    "stock_list": repository.upsert_stock_info,
+                    "index_list": repository.upsert_index_info,
+                    "calendar": repository.upsert_trade_calendar,
+                    "daily": repository.upsert_daily_quotes,
+                    "index": repository.upsert_index_quotes,
+                    "basic": repository.upsert_daily_basic,
+                    "financial": repository.upsert_financial_indicator,
+                }
+
+                count = await upsert_map[data_type](df)
+                results.append((name, count))
+                console.print(f"[green]✓ {name} 更新完成，插入 {count} 条记录[/green]")
+
+            except Exception as e:
+                results.append((name, 0))
+                console.print(f"[red]✗ {name} 更新失败: {e}[/red]")
+
+        # 显示汇总
+        console.print("\n[bold]更新汇总:[/bold]")
+        total = 0
+        for name, count in results:
+            status = "[green]✓[/green]" if count >= 0 else "[red]✗[/red]"
+            console.print(f"  {status} {name}: {count} 条")
+            total += count
+        console.print(f"\n[cyan]总计: {total} 条记录[/cyan]")
+
+    asyncio.run(_fetch_all_async())

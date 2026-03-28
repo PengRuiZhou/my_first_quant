@@ -124,10 +124,12 @@ class DataRepository:
 
                 if on_conflict == "do_update" and index_elements:
                     # PostgreSQL upsert
+                    # 排除索引列和 created_at（保留原始创建时间）
+                    exclude_cols = set(index_elements) | {"created_at"}
                     update_cols = {
                         c.name: stmt.excluded[c.name]
                         for c in model_class.__table__.columns
-                        if c.name not in index_elements
+                        if c.name not in exclude_cols
                     }
                     stmt = stmt.on_conflict_do_update(
                         index_elements=index_elements,

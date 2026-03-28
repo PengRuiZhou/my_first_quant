@@ -192,10 +192,16 @@ my_first_quant/              # 项目根目录
 # 获取股票列表
 quant fetch stock_list
 
+# 获取指数列表
+quant fetch index_list
+
 # 获取指定日期范围的日线数据
 quant fetch daily -s 20230101 -e 20231231
 
-# 初始化3年历史数据（首次使用）
+# 批量更新所有数据类型
+quant fetch all -s 20230101 -e 20231231
+
+# 初始化3年历史数据（首次使用，含财务指标）
 quant init-data --years 3
 ```
 
@@ -244,11 +250,13 @@ quant db drop              # 删除数据库表
 
 # 数据获取
 quant fetch stock_list     # 获取股票列表
+quant fetch index_list     # 获取指数列表
 quant fetch daily          # 获取日线数据
 quant fetch index          # 获取指数行情
 quant fetch basic          # 获取每日指标
 quant fetch calendar       # 获取交易日历
 quant fetch financial      # 获取财务指标
+quant fetch all -s 20230101 -e 20231231  # 批量更新所有数据（指定日期范围）
 quant fetch daily -s 20230101 -e 20231231  # 指定日期范围
 
 # 调度器管理
@@ -259,7 +267,7 @@ quant scheduler run -j update_daily_quotes  # 手动运行任务
 quant scheduler stop       # 停止调度器
 # 日志文件位于: .quant/scheduler/scheduler.log
 
-# 初始化历史数据
+# 初始化历史数据（含财务指标）
 quant init-data --years 3  # 初始化3年历史数据
 
 # 回测

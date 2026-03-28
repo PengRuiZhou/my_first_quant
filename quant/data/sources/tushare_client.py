@@ -64,18 +64,6 @@ class TushareClient(BaseDataSource):
         "exchange": "exchange",
     }
 
-    INDEX_LIST_MAP = {
-        "ts_code": "ts_code",
-        "name": "name",
-        "full_name": "full_name",
-        "market": "market",
-        "publisher": "publisher",
-        "base_date": "base_date",
-        "base_point": "base_point",
-        "list_date": "list_date",
-        "weight_rule": "weight_rule",
-    }
-
     DAILY_QUOTE_MAP = {
         "ts_code": "ts_code",
         "trade_date": "trade_date",
@@ -199,23 +187,6 @@ class TushareClient(BaseDataSource):
         result["is_active"] = True
 
         logger.info(f"获取到 {len(result)} 条股票信息")
-        return result
-
-    @retry_on_failure(max_retries=3)
-    async def get_index_list(self) -> pd.DataFrame:
-        """获取指数列表"""
-        logger.info("正在从 Tushare 获取指数列表...")
-
-        loop = asyncio.get_event_loop()
-        # 获取上证指数
-        df_sh = await loop.run_in_executor(None, lambda: self._pro.index_basic(market="SSE"))
-        # 获取深证指数
-        df_sz = await loop.run_in_executor(None, lambda: self._pro.index_basic(market="SZSE"))
-
-        df = pd.concat([df_sh, df_sz], ignore_index=True)
-        result = self._rename_columns(df, self.INDEX_LIST_MAP)
-
-        logger.info(f"获取到 {len(result)} 条指数信息")
         return result
 
     @retry_on_failure(max_retries=3)

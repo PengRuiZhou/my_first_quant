@@ -178,6 +178,9 @@
 | 2026-03-25 Stage3.2.2 | asyncpg 参数数量超限 (32767) | 1 | `_bulk_insert` 分批插入 (batch_size=2000) |
 | 2026-03-25 Stage3.2.2 | 日期字符串无法插入 DATE 列 | 1 | `pd.to_datetime().dt.date` 转换 |
 | 2026-03-25 Stage3.2.2 | SQLAlchemy async 缺少 greenlet | 1 | `pip install greenlet` |
+| 2026-03-28 Stage3.2.5 | upsert 覆盖 created_at 字段 | 1 | 在 `_bulk_insert` 中排除 `created_at` 列 |
+| 2026-03-28 Stage3.2.5 | get_index_list 方法重复定义 | 1 | 删除第一个简单版本，保留增强版本 |
+| 2026-03-28 Stage3.2.5 | INDEX_LIST_MAP 常量未使用 | 1 | 删除该常量 |
 
 ### 阶段 3.1：CLI 模块化重构
 - **状态：** complete
@@ -278,8 +281,8 @@
 | 我在哪里？ | 阶段 3 数据支撑模块 ✅ 完成，阶段 4 策略模块待开发 |
 | 我要去哪里？ | 阶段 4：策略模块（Verses 因子库） |
 | 目标是什么？ | 构建 A 股量化交易框架，支持因子研究、回测和实盘 |
-| 我学到了什么？ | 见 findings.md（DateConverter 架构设计、pandas 3.0 混合格式处理） |
-| 我做了什么？ | 完成 DateConverter ETL 重构（151 测试通过） |
+| 我学到了什么？ | 见 findings.md（upsert 时间戳保留、CLI 批量更新、adj_factor 决策） |
+| 我做了什么？ | CLI 增强 + 数据更新优化 + adj_factor 决策 |
 
 ---
 
@@ -389,6 +392,36 @@
   - 沪深300行业指数：10个行业分类
   - 中证行业指数：10个行业分类
   - 主题指数：科创50、创业板50、全指医药、中证银行等
+
+### 阶段 3.2.5：CLI 增强 + 数据更新优化
+- **状态：** complete
+- **开始时间：** 2026-03-28
+- **完成时间：** 2026-03-28
+- 已采取的行动：
+  - **修复 upsert 覆盖 created_at 问题**：在 `_bulk_insert` 中排除 `created_at` 列
+  - **fetch 命令增强**：
+    - 新增 `all` 数据类型，批量更新所有数据
+    - 新增 `index_list` 数据类型
+    - 支持类型：all/stock_list/index_list/daily/index/basic/calendar/financial
+  - **init_data 增强**：添加 `financial`（财务指标）数据获取
+  - **代码清理**：
+    - 修复 `tushare_client.py` 中 `get_index_list` 重复定义
+    - 删除未使用的 `INDEX_LIST_MAP` 常量
+  - **adj_factor 决策**：暂不添加 `AdjFactor` 模型（详见 findings.md）
+- 创建/修改的文件：
+  - `quant/data/storage/repository.py` - 修复 upsert 覆盖 created_at
+  - `quant/cli/fetch.py` - 添加 all/index_list 支持
+  - `quant/data/storage/scheduler.py` - 添加 financial 到 init_historical_data
+  - `quant/cli/init_data.py` - 更新文档
+  - `quant/data/sources/tushare_client.py` - 删除重复方法
+  - `findings.md`, `progress.md` - 更新文档
+- CLI 使用示例：
+  ```bash
+  quant fetch all -s 20260101 -e 20260328  # 批量更新所有数据
+  quant fetch index_list                    # 获取指数列表
+  quant fetch financial -s 20260101        # 获取财务指标
+  quant init-data --years 3                # 初始化3年数据（含财务指标）
+  ```
 
 ---
 *完成每个阶段或遇到错误后更新*

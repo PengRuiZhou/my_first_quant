@@ -207,7 +207,8 @@ query → Result → scalars().all() → DataFrame
 
 **CLI 命令设计**：
 - **fetch 命令**：获取数据并存储到数据库
-  - 支持 6 种数据类型：`stock_list`, `daily`, `index`, `basic`, `calendar`, `financial`
+  - 支持 8 种数据类型：`all`, `stock_list`, `index_list`, `daily`, `index`, `basic`, `calendar`, `financial`
+  - `all` - 批量更新所有数据类型
   - 选项：`--start`, `--end`, `--source`
   - 自动运行 ETL 管道（去重 + 缺失值填充）
 - **scheduler 命令组**：管理定时任务
@@ -241,8 +242,11 @@ query → Result → scalars().all() → DataFrame
 ```bash
 # 获取数据
 quant fetch stock_list
+quant fetch index_list              # 获取指数列表
 quant fetch daily -s 20230101 -e 20231231
 quant fetch calendar
+quant fetch financial -s 20230101   # 获取财务指标
+quant fetch all -s 20230101 -e 20231231  # 批量更新所有数据
 
 # 调度器管理
 quant scheduler list
@@ -252,7 +256,7 @@ quant scheduler run --job update_daily_quotes
 quant scheduler stop
 
 # 初始化历史数据
-quant init-data --years 3
+quant init-data --years 3           # 包含财务指标
 ```
 
 #### Stage 3 Phase 5 实现发现（测试）
@@ -528,6 +532,47 @@ for i in range(0, len(records), batch_size):
 | stock_info | 5,493 |
 | trade_calendar | 1,096 |
 | daily_quote | 6,000 |
+
+#### Stage 3.2.5 CLI 增强 + 数据更新优化
+
+**问题修复：upsert 时 created_at 被覆盖**：
+- **问题**：`_bulk_insert` 的 upsert 逻辑会覆盖 `created_at` 字段
+- **原因**：`on_conflict_do_update` 更新所有非索引列，包括 `created_at`
+- **解决方案**：在 upsert 时排除 `created_at` 列
+```python
+exclude_cols = set(index_elements) | {"created_at"}
+update_cols = {
+    c.name: stmt.excluded[c.name]
+    for c in model_class.__table__.columns
+    if c.name not in exclude_cols
+}
+```
+
+**fetch 命令增强**：
+- 新增 `all` 数据类型：`quant fetch all` 批量更新所有数据
+- 新增 `index_list` 数据类型：`quant fetch index_list` 获取指数列表
+- 支持的数据类型：`all`, `stock_list`, `index_list`, `daily`, `index`, `basic`, `calendar`, `financial`
+
+**init_data 增强**：
+- 新增 `financial`（财务指标）数据获取
+- 数据类型：股票列表、指数列表、交易日历、日线行情、每日指标、指数行情、财务指标
+
+**代码清理**：
+- 修复 `tushare_client.py` 中 `get_index_list` 方法重复定义问题
+- 删除第一个简单版本（获取 SSE+SZSE 全部指数），保留增强版本（支持参数化查询）
+- 删除未使用的 `INDEX_LIST_MAP` 常量
+
+**adj_factor（复权因子）决策**：
+- **当前状态**：TushareClient 有 `get_adj_factor()` 方法，但数据未入库
+- **决策**：暂不添加 `AdjFactor` 模型和入库逻辑
+- **理由**：
+  1. 当前 ETL 层的 `PriceAdjuster` 可实时计算复权价格
+  2. 复权因子会因分红/拆股而变化，存储后同步逻辑复杂
+  3. 策略模块的因子系统（FactorData）才是核心，adj_factor 只是辅助
+- **潜在风险**：
+  - 增量更新时复权可能不精确（历史因子可能已变化）
+  - 如需精确增量复权，需后续添加 `AdjFactor` 模型
+- **替代方案**：每次获取日线数据时实时计算复权价格
 
 ## Stage 2 补充：项目骨架
 

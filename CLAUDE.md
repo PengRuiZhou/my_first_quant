@@ -180,11 +180,13 @@ quant db drop              # 删除数据库表
 
 # 数据获取
 quant fetch stock_list     # 获取股票列表
+quant fetch index_list     # 获取指数列表
 quant fetch daily          # 获取日线数据
 quant fetch index          # 获取指数行情
 quant fetch basic          # 获取每日指标
 quant fetch calendar       # 获取交易日历
 quant fetch financial      # 获取财务指标
+quant fetch all -s 20230101 -e 20231231  # 批量更新所有数据（指定日期范围）
 quant fetch daily -s 20230101 -e 20231231  # 指定日期范围
 
 # 调度器
@@ -196,10 +198,18 @@ quant scheduler stop       # 停止调度器
 # 日志文件: .quant/scheduler/scheduler.log
 
 # 初始化数据
-quant init-data --years 3  # 初始化3年历史数据
+quant init-data --years 3  # 初始化3年历史数据（含财务指标）
 
 quant backtest <strategy>  # 运行回测
 ```
+
+## Known Limitations
+
+**adj_factor（复权因子）未入库**：
+- 当前 TushareClient 有 `get_adj_factor()` 方法，但复权因子数据未持久化到数据库
+- ETL 层的 `PriceAdjuster` 可实时计算复权价格
+- **潜在风险**：增量更新时复权可能不精确（历史因子可能因分红/拆股而变化）
+- **后续方案**：如需精确增量复权，可添加 `AdjFactor` 模型和入库逻辑
 
 ## Key Files
 

@@ -169,16 +169,26 @@
   - daily_quote: 6,000 条
 - **状态：** complete
 
-### 阶段 3.2.3：DateConverter ETL 重构
-- [ ] 创建 DateConverter 清洗器类
-- [ ] 支持多种日期格式（YYYYMMDD, YYYY-MM-DD）
-- [ ] 自动检测日期列
-- [ ] 更新 ETL Pipeline 包含 DateConverter
-- [ ] 移除 TushareClient 中的日期转换代码
-- [ ] 添加单元测试和集成测试
+### 阶段 3.2.3：DateConverter ETL 重构 ✅
+- [x] 创建 DateConverter 清洗器类
+- [x] 支持多种日期格式（YYYYMMDD, YYYY-MM-DD, YYYY/MM/DD）
+- [x] 自动检测日期列
+- [x] 更新 ETL Pipeline 包含 DateConverter
+- [x] 移除 TushareClient 中的日期转换代码
+- [x] 添加单元测试和集成测试
 - **设计文档：** [2026-03-25-date-converter-etl.md](docs/superpowers/plans/2026-03-25-date-converter-etl.md)
 - **架构决策：** 日期转换从数据源层移至 ETL 层，统一处理
-- **状态：** pending
+- **性能：** 纯格式 7.3M rows/s，混合格式 729K rows/s
+- **状态：** complete
+
+### 阶段 3.2.5：CLI 增强 + 数据更新优化 ✅
+- [x] 修复 upsert 覆盖 created_at 问题
+- [x] fetch 命令添加 `all` 批量更新
+- [x] fetch 命令添加 `index_list` 数据类型
+- [x] init_data 添加 financial 数据获取
+- [x] 修复 get_index_list 重复定义
+- [x] 决策：adj_factor 暂不入库（详见 findings.md）
+- **状态：** complete
 
 ### 阶段 4：策略模块
 - [ ] Verses 因子库
@@ -251,3 +261,6 @@
 | asyncpg 参数数量超限 (32767) | 1 | `_bulk_insert` 分批插入 (batch_size=2000) |
 | 日期字符串无法插入 DATE 列 | 1 | `pd.to_datetime().dt.date` 转换 |
 | SQLAlchemy async 缺少 greenlet | 1 | `pip install greenlet` |
+| upsert 覆盖 created_at 字段 | 1 | 在 `_bulk_insert` 中排除 `created_at` 列 |
+| get_index_list 方法重复定义 | 1 | 删除第一个简单版本，保留增强版本 |
+| INDEX_LIST_MAP 常量未使用 | 1 | 删除该常量 |

@@ -434,6 +434,16 @@ class DataScheduler:
             else:
                 stats["index_quotes"] = 0
 
+            # 6. 财务指标
+            logger.info("获取财务指标...")
+            fin_df = await self.data_source.get_financial_indicator(
+                start_date=start_date.strftime("%Y%m%d"),
+                end_date=end_date.strftime("%Y%m%d"),
+            )
+            if not fin_df.empty:
+                fin_df = pipeline.run(fin_df)
+            stats["financial_indicator"] = await self.repository.upsert_financial_indicator(fin_df)
+
             logger.info(f"历史数据初始化完成: {stats}")
 
         except Exception as e:
