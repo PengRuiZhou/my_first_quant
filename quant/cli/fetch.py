@@ -56,7 +56,7 @@ def fetch(
     if data_type == "all":
         _run_fetch_all(start_date, end_date, source, max_workers)
     else:
-        _run_fetch(data_type, start_date, end_date, source, ts_code, max_workers)
+        asyncio.run(_run_fetch(data_type, start_date, end_date, source, ts_code, max_workers))
 
 
 def _fetch_financial_parallel(
@@ -165,7 +165,7 @@ def _fetch_financial_parallel(
     return pd.DataFrame()
 
 
-def _run_fetch(
+async def _run_fetch(
     data_type: str,
     start_date: str | None,
     end_date: str | None,
@@ -173,80 +173,92 @@ def _run_fetch(
     ts_code: str | None,
     max_workers: int,
 ) -> None:
-    """执行数据获取"""
+    """执行数据获取（异步函数）"""
     from quant.data.etl.cleaners import DuplicateCleaner, MissingValueCleaner
     from quant.data.etl.pipeline import ETLPipeline
     from quant.data.sources.tushare_client import TushareClient
     from quant.data.storage.repository import DataRepository
 
-    async def _fetch_async():
-        # 初始化数据源和仓库
-        data_source = TushareClient()
-        repository = DataRepository()
+    # 初始化数据源和仓库
+    data_source = TushareClient()
+    repository = DataRepository()
 
-        # 创建 ETL 管道
-        pipeline = (
-            ETLPipeline()
-            .add_cleaner(DuplicateCleaner())
-            .add_cleaner(MissingValueCleaner(strategy="ffill", limit=5))
-        )
+    # 创建 ETL 管道
+    pipeline = (
+        ETLPipeline()
+        .add_cleaner(DuplicateCleaner())
+        .add_cleaner(MissingValueCleaner(strategy="ffill", limit=5))
+    )
 
-        console.print(f"[blue]正在从 {source} 获取 {data_type} 数据...[/blue]")
+    console.print(f"[blue]正在从 {source} 获取 {data_type} 数据...[/blue]")
 
-        try:
-            if data_type == "stock_list":
-                df = await data_source.get_stock_list()
-                count = await repository.upsert_stock_info(df)
-                console.print(f"[green]股票列表更新完成，插入 {count} 条记录[/green]")
+    try:
+        if data_type == "stock_list":
+            df = await data_source.get_stock_list()
+            count = await repository.upsert_stock_info(df)
+            console.print(f"[green]股票列表更新完成，插入 {count} 条记录[/green]")
 
-            elif data_type == "index_list":
-                df = await data_source.get_index_list()
-                count = await repository.upsert_index_info(df)
-                console.print(f"[green]指数列表更新完成，插入 {count} 条记录[/green]")
+        elif data_type == "index_list":
+            df = await data_source.get_index_list()
+            count = await repository.upsert_index_info(df)
+            console.print(f"[green]指数列表更新完成，插入 {count} 条记录[/green]")
 
-            elif data_type == "daily":
-                df = await data_source.get_daily_quotes(start_date=start_date, end_date=end_date)
-                if not df.empty:
-                    df = pipeline.run(df)
-                count = await repository.upsert_daily_quotes(df)
-                console.print(f"[green]日线行情更新完成，插入 {count} 条记录[/green]")
+        elif data_type == "daily":
+            df = await data_source.get_daily_quotes(start_date=start_date, end_date=end_date)
+            if not df.empty:
+                df = pipeline.run(df)
+            count = await repository.upsert_daily_quotes(df)
+            console.print(f"[green]日线行情更新完成，插入 {count} 条记录[/green]")
 
-            elif data_type == "index":
-                df = await data_source.get_index_quotes(start_date=start_date, end_date=end_date)
-                count = await repository.upsert_index_quotes(df)
-                console.print(f"[green]指数行情更新完成，插入 {count} 条记录[/green]")
+        elif data_type == "index":
+            df = await data_source.get_index_quotes(start_date=start_date, end_date=end_date)
+            count = await repository.upsert_index_quotes(df)
+            console.print(f"[green]指数行情更新完成，插入 {count} 条记录[/green]")
 
-            elif data_type == "basic":
-                df = await data_source.get_daily_basic(start_date=start_date, end_date=end_date)
-                count = await repository.upsert_daily_basic(df)
-                console.print(f"[green]每日指标更新完成，插入 {count} 条记录[/green]")
+        elif data_type == "basic":
+            df = await data_source.get_daily_basic(start_date=start_date, end_date=end_date)
+            count = await repository.upsert_daily_basic(df)
+            console.print(f"[green]每日指标更新完成，插入 {count} 条记录[/green]")
 
-            elif data_type == "calendar":
-                exchange = "SSE"
-                df = await data_source.get_trade_calendar(
-                    exchange=exchange, start_date=start_date, end_date=end_date
-                )
-                count = await repository.upsert_trade_calendar(df)
-                console.print(f"[green]交易日历更新完成，插入 {count} 条记录[/green]")
+        elif data_type == "calendar":
+            exchange = "SSE"
+            df = await data_source.get_trade_calendar(
+                exchange=exchange, start_date=start_date, end_date=end_date
+            )
+            count = await repository.upsert_trade_calendar(df)
+            console.print(f"[green]交易日历更新完成，插入 {count} 条记录[/green]")
 
-            elif data_type == "financial":
+        elif data_type == "financial":
+            if ts_code:
+                # 单个股票：直接使用 async API
                 df = await data_source.get_financial_indicator(
-                    start_date=start_date, end_date=end_date
+                    ts_code=ts_code, start_date=start_date, end_date=end_date
                 )
-                count = await repository.upsert_financial_indicator(df)
-                console.print(f"[green]财务指标更新完成，插入 {count} 条记录[/green]")
-
             else:
-                console.print(f"[red]未知数据类型: {data_type}[/red]")
-                console.print(
-                    "支持的数据类型: all, stock_list, index_list, daily, index, basic, calendar, financial"
+                # 批量获取：使用同步线程池 + run_in_executor
+                stocks = await repository.get_stock_list(active_only=True)
+                ts_codes = stocks["ts_code"].tolist()
+
+                loop = asyncio.get_running_loop()
+                df = await loop.run_in_executor(
+                    None,
+                    lambda: _fetch_financial_parallel(
+                        data_source, ts_codes, start_date, end_date, max_workers
+                    )
                 )
 
-        except Exception as e:
-            console.print(f"[red]获取数据失败: {e}[/red]")
-            raise
+            count = await repository.upsert_financial_indicator(df)
+            console.print(f"[green]财务指标更新完成，插入 {count} 条记录[/green]")
 
-    asyncio.run(_fetch_async())
+        else:
+            console.print(f"[red]未知数据类型: {data_type}[/red]")
+            console.print(
+                "支持的数据类型: all, stock_list, index_list, daily, index, basic, calendar, financial"
+            )
+
+    except Exception as e:
+        console.print(f"[red]获取数据失败: {e}[/red]")
+        raise
 
 
 def _run_fetch_all(
