@@ -4,11 +4,19 @@
 """
 
 import asyncio
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Literal
 
+import pandas as pd
 import typer
 from typer import Argument, Option
 
 from quant.cli.console import console
+
+# 类型定义
+FetchStatus = Literal["success", "empty", "failed"]
+type FetchResult = tuple[str, FetchStatus, pd.DataFrame | None, str | None]
+# (ts_code, status, df, error)
 
 
 def fetch(
@@ -49,6 +57,112 @@ def fetch(
         _run_fetch_all(start_date, end_date, source, max_workers)
     else:
         _run_fetch(data_type, start_date, end_date, source, ts_code, max_workers)
+
+
+def _fetch_financial_parallel(
+    data_source,
+    ts_codes: list[str],
+    start_date: str | None,
+    end_date: str | None,
+    max_workers: int = 20,
+) -> pd.DataFrame:
+    """多线程并行获取所有股票的财务指标（纯同步函数）
+
+    使用 ThreadPoolExecutor 真正的多线程并行，适合同步阻塞 I/O。
+
+    线程安全设计：
+    - worker 返回结构化结果，不修改共享变量
+    - 主线程统一汇总 success / empty / failed
+    """
+    from rich.progress import BarColumn, Progress, TextColumn, TimeRemainingColumn
+
+    # 边界情况：空股票列表
+    if not ts_codes:
+        console.print("[yellow]没有可获取的股票列表[/yellow]")
+        return pd.DataFrame()
+
+    total = len(ts_codes)
+    console.print(f"[blue]开始多线程并行获取 {total} 只股票的财务指标（线程数: {max_workers}）...[/blue]")
+
+    # 直接使用 Tushare 同步 API
+    pro = data_source._pro
+    fields = ",".join(data_source.FINANCIAL_INDICATOR_MAP.keys())
+
+    def fetch_one_sync(code: str) -> FetchResult:
+        """单个股票获取（同步，线程安全）
+
+        Returns:
+            (ts_code, status, df, error)
+            status: "success" | "empty" | "failed"
+        """
+        try:
+            df = pro.fina_indicator(
+                ts_code=code,
+                start_date=start_date,
+                end_date=end_date,
+                fields=fields,
+            )
+            if df is not None and not df.empty:
+                return (code, "success", df, None)
+            else:
+                return (code, "empty", None, None)
+        except Exception as e:
+            return (code, "failed", None, str(e))
+
+    # 统计结果（主线程收集，线程安全）
+    success_dfs: list[pd.DataFrame] = []
+    success_count = 0
+    empty_count = 0
+    failed_codes: list[tuple[str, str]] = []
+
+    with Progress(
+        TextColumn("[bold blue]{task.description}"),
+        BarColumn(),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+        TextColumn("({task.completed}/{task.total})"),
+        TimeRemainingColumn(),
+        console=console,
+    ) as progress:
+        task = progress.add_task("获取财务指标", total=total)
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # 直接提交所有任务（future_to_code 映射多余，因为 worker 已返回 code）
+            futures = [executor.submit(fetch_one_sync, code) for code in ts_codes]
+
+            for future in as_completed(futures):
+                code, status, df, error = future.result()
+
+                if status == "success":
+                    success_dfs.append(df)
+                    success_count += 1
+                elif status == "empty":
+                    empty_count += 1
+                else:  # failed
+                    failed_codes.append((code, error or "unknown"))
+
+                progress.update(task, advance=1)
+
+    # 打印结果汇总
+    fail_count = len(failed_codes)
+    console.print(
+        f"[green]✓ 成功: {success_count}[/green], "
+        f"[yellow]○ 空数据: {empty_count}[/yellow], "
+        f"[red]✗ 失败: {fail_count}[/red]"
+    )
+
+    # 打印失败详情（最多显示 10 个）
+    if failed_codes:
+        console.print("[dim]失败股票代码:[/dim]")
+        for code, err in failed_codes[:10]:
+            console.print(f"[dim]  {code}: {err[:50]}...[/dim]")
+        if len(failed_codes) > 10:
+            console.print(f"[dim]  ... 还有 {len(failed_codes) - 10} 个，建议输出到日志文件排查[/dim]")
+
+    # 合并结果并映射列名
+    if success_dfs:
+        result = pd.concat(success_dfs, ignore_index=True)
+        return data_source._rename_columns(result, data_source.FINANCIAL_INDICATOR_MAP)
+    return pd.DataFrame()
 
 
 def _run_fetch(
@@ -139,7 +253,7 @@ def _run_fetch_all(
     start_date: str | None,
     end_date: str | None,
     source: str,
-    max_workers: int = 20,
+    max_workers: int,
 ) -> None:
     """批量更新所有数据"""
     from quant.data.etl.cleaners import DuplicateCleaner, MissingValueCleaner
