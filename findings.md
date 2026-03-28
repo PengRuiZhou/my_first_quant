@@ -621,7 +621,7 @@ def _fetch_financial_parallel(..., max_workers: int = 4):
 - DataFrame 是线程安全的（每个线程返回独立的 DataFrame）
 
 **性能优化**：
-- 默认 `max_workers=4`，可通过 `--max-workers` 参数调整
+- 默认 `max_workers=20`，可通过 `--max-workers` 参数调整
 - 并行获取多个股票的财务指标，显著减少总耗时
 - Rich 进度条实时显示获取进度
 
@@ -629,7 +629,7 @@ def _fetch_financial_parallel(..., max_workers: int = 4):
 | 参数 | 说明 | 默认值 |
 |------|------|--------|
 | `--ts-code` | 指定股票代码（逗号分隔），不指定则获取全部 | None（全部） |
-| `--max-workers` | 并行线程数 | 4 |
+| `--max-workers` | 并行线程数 | 20 |
 
 ## Stage 2 补充：项目骨架
 

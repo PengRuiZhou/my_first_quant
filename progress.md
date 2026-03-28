@@ -410,7 +410,7 @@
   - **adj_factor 决策**：暂不添加 `AdjFactor` 模型（详见 findings.md）
   - **财务指标并行获取实现**：
     - 添加 `--ts-code` 参数：按股票代码获取财务指标
-    - 添加 `--max-workers` 参数：控制并行线程数（默认8，最大16）
+    - 添加 `--max-workers` 参数：控制并行线程数（默认20，范围1-100）
     - 实现 `_fetch_financial_parallel` 纯同步函数，使用 ThreadPoolExecutor
     - 通过 `run_in_executor` 桥接同步/异步边界
     - 线程安全设计：每个线程创建独立的数据源客户端
