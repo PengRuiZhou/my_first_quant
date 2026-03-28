@@ -246,7 +246,9 @@ quant fetch index_list              # 获取指数列表
 quant fetch daily -s 20230101 -e 20231231
 quant fetch calendar
 quant fetch financial -s 20230101   # 获取财务指标
+quant fetch financial --ts-code 000001.SZ  # 获取指定股票的财务指标
 quant fetch all -s 20230101 -e 20231231  # 批量更新所有数据
+quant fetch all -s 20230101 -e 20231231 --max-workers 8  # 指定并行度
 
 # 调度器管理
 quant scheduler list
@@ -573,6 +575,61 @@ update_cols = {
   - 增量更新时复权可能不精确（历史因子可能已变化）
   - 如需精确增量复权，需后续添加 `AdjFactor` 模型
 - **替代方案**：每次获取日线数据时实时计算复权价格
+
+#### Stage 3.2.5 financial 并行获取实现
+
+**线程安全设计模式**：
+- **问题**：TushareClient 使用同步 API，需要在异步环境中并行调用
+- **解决方案**：使用 `ThreadPoolExecutor` + `asyncio.run_in_executor`
+- **关键设计**：
+  1. **纯同步函数**：`_fetch_financial_parallel()` 是纯同步函数，内部使用 `ThreadPoolExecutor`
+  2. **异步包装**：通过 `asyncio.get_event_loop().run_in_executor()` 调用同步函数
+  3. **线程隔离**：每个线程独立调用 TushareClient，无共享状态
+
+**run_in_executor 桥接模式**：
+```python
+# CLI 调用（异步）
+async def _run_fetch(...):
+    # 使用 asyncio.run_in_executor 包装同步并行函数
+    result = await asyncio.get_event_loop().run_in_executor(
+        None,  # 使用默认线程池
+        _fetch_financial_parallel,  # 纯同步函数
+        source, ts_codes, start_date, end_date, max_workers, show_progress
+    )
+    # 返回类型：List[Tuple[str, DataFrame]]
+    return result
+```
+
+**ThreadPoolExecutor 内部实现**：
+```python
+def _fetch_financial_parallel(..., max_workers: int = 4):
+    """纯同步函数，使用 ThreadPoolExecutor 并行获取"""
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(source.get_financial_indicator, ts_code, start_date, end_date): ts_code
+            for ts_code in ts_codes
+        }
+        for future in as_completed(futures):
+            ts_code = futures[future]
+            df = future.result()
+            yield ts_code, df
+```
+
+**线程安全保证**：
+- TushareClient 的 `get_financial_indicator()` 方法是只读操作，无副作用
+- 每个线程独立发起 HTTP 请求，无共享状态
+- DataFrame 是线程安全的（每个线程返回独立的 DataFrame）
+
+**性能优化**：
+- 默认 `max_workers=4`，可通过 `--max-workers` 参数调整
+- 并行获取多个股票的财务指标，显著减少总耗时
+- Rich 进度条实时显示获取进度
+
+**参数说明**：
+| 参数 | 说明 | 默认值 |
+|------|------|--------|
+| `--ts-code` | 指定股票代码（逗号分隔），不指定则获取全部 | None（全部） |
+| `--max-workers` | 并行线程数 | 4 |
 
 ## Stage 2 补充：项目骨架
 

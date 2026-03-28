@@ -408,9 +408,15 @@
     - 修复 `tushare_client.py` 中 `get_index_list` 重复定义
     - 删除未使用的 `INDEX_LIST_MAP` 常量
   - **adj_factor 决策**：暂不添加 `AdjFactor` 模型（详见 findings.md）
+  - **财务指标并行获取实现**：
+    - 添加 `--ts-code` 参数：按股票代码获取财务指标
+    - 添加 `--max-workers` 参数：控制并行线程数（默认8，最大16）
+    - 实现 `_fetch_financial_parallel` 纯同步函数，使用 ThreadPoolExecutor
+    - 通过 `run_in_executor` 桥接同步/异步边界
+    - 线程安全设计：每个线程创建独立的数据源客户端
 - 创建/修改的文件：
   - `quant/data/storage/repository.py` - 修复 upsert 覆盖 created_at
-  - `quant/cli/fetch.py` - 添加 all/index_list 支持
+  - `quant/cli/fetch.py` - 添加 all/index_list 支持 + --ts-code/--max-workers 参数 + 并行获取
   - `quant/data/storage/scheduler.py` - 添加 financial 到 init_historical_data
   - `quant/cli/init_data.py` - 更新文档
   - `quant/data/sources/tushare_client.py` - 删除重复方法
@@ -418,10 +424,15 @@
 - CLI 使用示例：
   ```bash
   quant fetch all -s 20260101 -e 20260328  # 批量更新所有数据
+  quant fetch all -s 20260101 -e 20260328 --max-workers 8  # 指定并行度
   quant fetch index_list                    # 获取指数列表
   quant fetch financial -s 20260101        # 获取财务指标
+  quant fetch financial --ts-code 000001.SZ  # 获取指定股票的财务指标
   quant init-data --years 3                # 初始化3年数据（含财务指标）
   ```
+- 提交记录：
+  - `924df67` - feat(cli): add fetch all/index_list and fix upsert created_at
+  - `docs: update CLI docs for financial parallel fetch`（本次提交）
 
 ---
 *完成每个阶段或遇到错误后更新*

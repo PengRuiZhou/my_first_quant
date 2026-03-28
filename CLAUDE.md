@@ -185,8 +185,11 @@ quant fetch daily          # 获取日线数据
 quant fetch index          # 获取指数行情
 quant fetch basic          # 获取每日指标
 quant fetch calendar       # 获取交易日历
-quant fetch financial      # 获取财务指标
+quant fetch financial      # 获取财务指标（所有股票）
+quant fetch financial --ts-code 000001.SZ  # 获取指定股票的财务指标
+quant fetch financial --max-workers 10      # 使用10个并行线程获取
 quant fetch all -s 20230101 -e 20231231  # 批量更新所有数据（指定日期范围）
+quant fetch all -s 20230101 -e 20231231 --max-workers 8  # 批量更新并指定并行度
 quant fetch daily -s 20230101 -e 20231231  # 指定日期范围
 
 # 调度器
