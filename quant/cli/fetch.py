@@ -5,6 +5,7 @@
 
 import asyncio
 
+import typer
 from typer import Argument, Option
 
 from quant.cli.console import console
@@ -18,11 +19,13 @@ def fetch(
     start_date: str | None = Option(None, "--start", "-s", help="开始日期 (YYYYMMDD)"),
     end_date: str | None = Option(None, "--end", "-e", help="结束日期 (YYYYMMDD)"),
     source: str = Option("tushare", "--source", "-src", help="数据源: tushare/akshare"),
+    ts_code: str | None = Option(None, "--ts-code", "-c", help="股票代码 (financial 可选，如 000001.SZ)"),
+    max_workers: int = Option(20, "--max-workers", "-w", help="并发线程数 (financial 批量时使用，1-100)"),
 ) -> None:
     """获取数据
 
     支持的数据类型:
-    - all: 更新所有数据（增量更新）
+    - all: 更新所有数据（增量更新，含 financial）
     - stock_list: 股票列表
     - index_list: 指数列表
     - daily: 日线行情
@@ -30,11 +33,22 @@ def fetch(
     - basic: 每日指标
     - calendar: 交易日历
     - financial: 财务指标
+      - 指定 --ts-code: 获取单个股票
+      - 不指定: 并行获取所有股票（使用 --max-workers 控制并发数）
+
+    示例:
+      quant fetch financial -c 000001.SZ -s 20230101
+      quant fetch financial -s 20230101 -w 10
     """
+    # 参数校验
+    if max_workers < 1 or max_workers > 100:
+        console.print("[red]--max-workers 必须在 1-100 之间[/red]")
+        raise typer.Exit(1)
+
     if data_type == "all":
-        _run_fetch_all(start_date, end_date, source)
+        _run_fetch_all(start_date, end_date, source, max_workers)
     else:
-        _run_fetch(data_type, start_date, end_date, source)
+        _run_fetch(data_type, start_date, end_date, source, ts_code, max_workers)
 
 
 def _run_fetch(
@@ -42,6 +56,8 @@ def _run_fetch(
     start_date: str | None,
     end_date: str | None,
     source: str,
+    ts_code: str | None,
+    max_workers: int,
 ) -> None:
     """执行数据获取"""
     from quant.data.etl.cleaners import DuplicateCleaner, MissingValueCleaner
@@ -123,6 +139,7 @@ def _run_fetch_all(
     start_date: str | None,
     end_date: str | None,
     source: str,
+    max_workers: int = 20,
 ) -> None:
     """批量更新所有数据"""
     from quant.data.etl.cleaners import DuplicateCleaner, MissingValueCleaner
