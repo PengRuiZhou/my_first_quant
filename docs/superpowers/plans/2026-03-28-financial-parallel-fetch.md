@@ -13,7 +13,7 @@
 - 直接调用 `data_source._pro.fina_indicator()`，避免 async/同步转换问题
 - **线程安全**：worker 返回结构化结果，不在 worker 内改共享变量
 - **区分统计**：成功有数据、成功但空、失败报错
-- `max_workers` 可配置，默认 20，范围 1-100
+- `max_workers` 可配置，默认 10，范围 1-50
 - **--ts-code 只对 financial 有效**：其他 data_type 忽略此参数（宽松模式）
 - **fetch all 包含 financial**：会显著增加执行时间，文档需说明
 
@@ -424,11 +424,10 @@ run_in_executor(None, lambda: _fetch_financial_parallel(...))
 
 **可接受结论**：当前设计功能正确，先这样实现。后续如需优化可考虑复用明确的 executor。
 
-### 待验证事项
-1. `data_source._pro` 是否线程安全
-   - 若验证非线程安全，切换为线程内独立 client 策略
-2. Tushare 并发限流阈值
-3. 最佳 `max_workers` 值（默认 20，可能需要调低）
+### 已验证事项
+1. `data_source._pro` 是否线程安全 ✅ **已验证**：10 线程下稳定
+2. Tushare 并发限流阈值 ✅ **已验证**：10 线程 + retry 机制可稳定运行
+3. 最佳 `max_workers` 值 ✅ **已确定**：默认 10（范围 1-50）
 
 ### 性能预估
 - 实际耗时取决于：单请求延迟、Tushare 限流、空结果比例
@@ -437,13 +436,18 @@ run_in_executor(None, lambda: _fetch_financial_parallel(...))
 
 ### 风险点
 - **Tushare 限流**：可能触发 API 限流，建议从较低并发数开始测试
-- **内存压力**：大量 df 合并可能占用内存；第一阶段先全量汇总后统一入库，若内存或耗时成为瓶颈，再演进为分批 concat + 分批 upsert
-- **线程安全**：若 `data_source._pro` 非线程安全，后续改为每个 worker 独立创建 client
+- **~~内存压力~~**：~~大量 df 合并可能占用内存~~ ✅ **已解决**：改为逐个 df upsert
+- **限流风险**：✅ **已解决**：添加 retry 机制（3 次重试，递增等待）
+- **线程安全**：✅ **已验证**：`data_source._pro` 在 10 线程下稳定
 
 ### 后续优化方向
 1. 失败日志输出到文件（CSV/JSON）
-2. 分批写入数据库（避免内存峰值）
-3. 断点续传（记录已成功的股票代码）
+2. ~~分批写入数据库（避免内存峰值）~~ ✅ **已实现 (2026-03-29)**
+   - `_fetch_financial_parallel` 返回 `list[pd.DataFrame]`
+   - 调用方逐个 df upsert，DB 调用次数 = max_workers（默认 10）
+3. ~~单股票获取缺少 ETL 处理~~ ✅ **已修复 (2026-03-29)**
+   - 单股票分支添加 DateConverter + DuplicateCleaner
+4. 断点续传（记录已成功的股票代码）
 
 ### fetch all 用户须知
 - **fetch all 包含 financial**：会显著增加执行时间（可能从几分钟变成几分钟~十几分钟）

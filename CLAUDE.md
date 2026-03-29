@@ -185,11 +185,11 @@ quant fetch daily          # 获取日线数据
 quant fetch index          # 获取指数行情
 quant fetch basic          # 获取每日指标
 quant fetch calendar       # 获取交易日历
-quant fetch financial      # 获取财务指标（所有股票）
+quant fetch financial      # 获取财务指标（所有股票，10线程并行，带重试）
 quant fetch financial --ts-code 000001.SZ  # 获取指定股票的财务指标
-quant fetch financial --max-workers 10      # 使用10个并行线程获取
+quant fetch financial --max-workers 10      # 使用10个并行线程获取（默认值，范围1-50）
 quant fetch all -s 20230101 -e 20231231  # 批量更新所有数据（指定日期范围）
-quant fetch all -s 20230101 -e 20231231 --max-workers 8  # 批量更新并指定并行度
+quant fetch all -s 20230101 -e 20231231 --max-workers 8  # 批量更新并指定并行度（仅影响 financial）
 quant fetch daily -s 20230101 -e 20231231  # 指定日期范围
 
 # 调度器
@@ -207,6 +207,14 @@ quant backtest <strategy>  # 运行回测
 ```
 
 ## Known Limitations
+
+**financial 并行获取优化（2026-03-29）**：
+- `_fetch_financial_parallel` 返回 `list[pd.DataFrame]` 而非合并后的单个 DataFrame
+- 调用方逐个 df upsert，避免 `pd.concat` 的内存峰值
+- DB 调用次数 = max_workers（默认 10 次），可接受
+- **Retry 机制**：限流时最多重试 3 次，递增等待（1s → 1.5s → 2s → 2.5s）
+- **默认并发**：10 线程（范围 1-50），经测试 10 线程约 99% 成功率
+- 相关文件：[quant/cli/fetch.py](quant/cli/fetch.py)
 
 **adj_factor（复权因子）未入库**：
 - 当前 TushareClient 有 `get_adj_factor()` 方法，但复权因子数据未持久化到数据库

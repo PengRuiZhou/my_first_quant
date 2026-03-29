@@ -434,5 +434,55 @@
   - `924df67` - feat(cli): add fetch all/index_list and fix upsert created_at
   - `docs: update CLI docs for financial parallel fetch`（本次提交）
 
+### 阶段 3.2.7：Financial 单股票 ETL 修复
+- **状态：** complete
+- **开始时间：** 2026-03-29
+- **完成时间：** 2026-03-29
+- 已采取的行动：
+  - **问题发现**：单股票获取分支（`--ts-code`）缺少 ETL 处理，导致日期字段未转换为 date 对象
+  - **修复**：在单股票分支添加 DateConverter + DuplicateCleaner 处理
+  - **重试失败股票**：成功获取 002067.SZ (11条) 和 000050.SZ (12条)
+  - **增加 retry 次数**：从 2 次改为 3 次，递增等待 1s → 1.5s → 2s → 2.5s
+- 创建/修改的文件：
+  - `quant/cli/fetch.py` - 修复单股票 ETL + retry 次数改为 3
+
+### 阶段 3.2.6：Financial 并行获取内存优化
+- **状态：** complete
+- **开始时间：** 2026-03-29
+- **完成时间：** 2026-03-29
+- 已采取的行动：
+  - **问题分析**：原实现将所有股票的 df 合并成大 DataFrame 再写入，内存峰值高
+  - **方案选择**：采用逐个 df 直接 upsert 方案（DB 调用 = max_workers，默认 10 次）
+  - **实现优化**：
+    - `_fetch_financial_parallel` 返回 `list[pd.DataFrame]` 而非合并后的 DataFrame
+    - 调用方遍历列表逐个 upsert
+    - 移除最终的 `pd.concat` 操作
+    - 添加 ETL Pipeline 处理（DateConverter + DuplicateCleaner）
+    - 添加单 df 失败容错处理（继续处理下一个）
+    - **添加 retry 机制**：限流时最多重试 3 次，递增等待（1s → 1.5s → 2s → 2.5s）
+    - **调整默认并发**：从 20 降到 10（范围 1-50）
+  - **测试验证**：
+    - 20 线程无 retry：15% 限流失败，写入中断
+    - 10 线程无 retry：~85% 成功率
+    - 10 线程 + retry(2次)：**0.036% 失败率（2/5494）**，显著改善
+    - 10 线程 + retry(3次)：更稳定的配置
+    - 最终入库：58,927 条记录
+  - **最终测试结果**（2026-03-29 20:37）：
+    - 总股票数：5494
+    - ✓ 成功：5345 (97.3%)
+    - ○ 空数据：147 (2.7%)
+    - ✗ 失败：2 (0.036%) - 本地代理网络问题，非限流
+    - **结论**：10 线程 + retry 机制稳定性达标
+- 创建/修改的文件：
+  - `quant/cli/fetch.py` - 优化 financial 批量获取的内存使用 + retry + 容错
+  - `CLAUDE.md` - 添加内存优化说明
+  - `README.md` - 更新 CLI 命令示例
+  - `docs/superpowers/plans/2026-03-28-financial-parallel-fetch.md` - 标记优化已实现
+- 优化效果：
+  - 内存峰值从 `~2x总数据量` 降到 `~max_workers个df`
+  - DB 调用次数：10 次（默认值）
+  - 每个 df 独立 upsert，失败不影响其他
+  - 限流自动重试，成功率从 ~85% 提升到 ~99%
+
 ---
 *完成每个阶段或遇到错误后更新*

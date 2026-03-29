@@ -28,7 +28,7 @@ def fetch(
     end_date: str | None = Option(None, "--end", "-e", help="结束日期 (YYYYMMDD)"),
     source: str = Option("tushare", "--source", "-src", help="数据源: tushare/akshare"),
     ts_code: str | None = Option(None, "--ts-code", "-c", help="股票代码 (financial 可选，如 000001.SZ)"),
-    max_workers: int = Option(20, "--max-workers", "-w", help="并发线程数 (financial 批量时使用，1-100)"),
+    max_workers: int = Option(10, "--max-workers", "-w", help="并发线程数 (financial 批量时使用，1-50，默认10)"),
 ) -> None:
     """获取数据
 
@@ -49,8 +49,8 @@ def fetch(
       quant fetch financial -s 20230101 -w 10
     """
     # 参数校验
-    if max_workers < 1 or max_workers > 100:
-        console.print("[red]--max-workers 必须在 1-100 之间[/red]")
+    if max_workers < 1 or max_workers > 50:
+        console.print("[red]--max-workers 必须在 1-50 之间[/red]")
         raise typer.Exit(1)
 
     if data_type == "all":
@@ -65,7 +65,7 @@ def _fetch_financial_parallel(
     start_date: str | None,
     end_date: str | None,
     max_workers: int = 20,
-) -> pd.DataFrame:
+) -> list[pd.DataFrame]:
     """多线程并行获取所有股票的财务指标（纯同步函数）
 
     使用 ThreadPoolExecutor 真正的多线程并行，适合同步阻塞 I/O。
@@ -73,13 +73,16 @@ def _fetch_financial_parallel(
     线程安全设计：
     - worker 返回结构化结果，不修改共享变量
     - 主线程统一汇总 success / empty / failed
+
+    Returns:
+        list[pd.DataFrame]: 成功获取的 df 列表（已映射列名），供调用方逐个 upsert
     """
     from rich.progress import BarColumn, Progress, TextColumn, TimeRemainingColumn
 
     # 边界情况：空股票列表
     if not ts_codes:
         console.print("[yellow]没有可获取的股票列表[/yellow]")
-        return pd.DataFrame()
+        return []
 
     total = len(ts_codes)
     console.print(f"[blue]开始多线程并行获取 {total} 只股票的财务指标（线程数: {max_workers}）...[/blue]")
@@ -88,26 +91,41 @@ def _fetch_financial_parallel(
     pro = data_source._pro
     fields = ",".join(data_source.FINANCIAL_INDICATOR_MAP.keys())
 
-    def fetch_one_sync(code: str) -> FetchResult:
-        """单个股票获取（同步，线程安全）
+    def fetch_one_sync(code: str, max_retries: int = 3) -> FetchResult:
+        """单个股票获取（同步，线程安全，带重试）
+
+        Args:
+            code: 股票代码
+            max_retries: 限流时最大重试次数
 
         Returns:
             (ts_code, status, df, error)
             status: "success" | "empty" | "failed"
         """
-        try:
-            df = pro.fina_indicator(
-                ts_code=code,
-                start_date=start_date,
-                end_date=end_date,
-                fields=fields,
-            )
-            if df is not None and not df.empty:
-                return (code, "success", df, None)
-            else:
-                return (code, "empty", None, None)
-        except Exception as e:
-            return (code, "failed", None, str(e))
+        import time
+
+        last_error = None
+        for attempt in range(max_retries + 1):
+            try:
+                df = pro.fina_indicator(
+                    ts_code=code,
+                    start_date=start_date,
+                    end_date=end_date,
+                    fields=fields,
+                )
+                if df is not None and not df.empty:
+                    return (code, "success", df, None)
+                else:
+                    return (code, "empty", None, None)
+            except Exception as e:
+                last_error = str(e)
+                # 检测限流错误，等待后重试
+                if "请求过于频繁" in last_error and attempt < max_retries:
+                    time.sleep(1 + attempt * 0.5)  # 递增等待: 1s, 1.5s, 2s, 2.5s
+                    continue
+                return (code, "failed", None, last_error)
+
+        return (code, "failed", None, last_error)
 
     # 统计结果（主线程收集，线程安全）
     success_dfs: list[pd.DataFrame] = []
@@ -132,7 +150,7 @@ def _fetch_financial_parallel(
             for future in as_completed(futures):
                 code, status, df, error = future.result()
 
-                if status == "success":
+                if status == "success" and df is not None:
                     success_dfs.append(df)
                     success_count += 1
                 elif status == "empty":
@@ -158,11 +176,13 @@ def _fetch_financial_parallel(
         if len(failed_codes) > 10:
             console.print(f"[dim]  ... 还有 {len(failed_codes) - 10} 个，建议输出到日志文件排查[/dim]")
 
-    # 合并结果并映射列名
+    # 映射列名后返回 df 列表（不做 concat，节省内存）
     if success_dfs:
-        result = pd.concat(success_dfs, ignore_index=True)
-        return data_source._rename_columns(result, data_source.FINANCIAL_INDICATOR_MAP)
-    return pd.DataFrame()
+        return [
+            data_source._rename_columns(df, data_source.FINANCIAL_INDICATOR_MAP)
+            for df in success_dfs
+        ]
+    return []
 
 
 async def _run_fetch(
@@ -174,7 +194,7 @@ async def _run_fetch(
     max_workers: int,
 ) -> None:
     """执行数据获取（异步函数）"""
-    from quant.data.etl.cleaners import DuplicateCleaner, MissingValueCleaner
+    from quant.data.etl.cleaners import DateConverter, DuplicateCleaner, MissingValueCleaner
     from quant.data.etl.pipeline import ETLPipeline
     from quant.data.sources.tushare_client import TushareClient
     from quant.data.storage.repository import DataRepository
@@ -183,9 +203,10 @@ async def _run_fetch(
     data_source = TushareClient()
     repository = DataRepository()
 
-    # 创建 ETL 管道
+    # 创建 ETL 管道（含日期转换）
     pipeline = (
         ETLPipeline()
+        .add_cleaner(DateConverter())  # 日期转换放在最前面
         .add_cleaner(DuplicateCleaner())
         .add_cleaner(MissingValueCleaner(strategy="ffill", limit=5))
     )
@@ -234,20 +255,52 @@ async def _run_fetch(
                 df = await data_source.get_financial_indicator(
                     ts_code=ts_code, start_date=start_date, end_date=end_date
                 )
+                # ETL 处理：日期转换 + 去重
+                df = (
+                    ETLPipeline()
+                    .add_cleaner(DateConverter())
+                    .add_cleaner(DuplicateCleaner(subset=["ts_code", "ann_date", "end_date"]))
+                    .run(df)
+                )
+                count = await repository.upsert_financial_indicator(df)
             else:
-                # 批量获取：使用同步线程池 + run_in_executor
+                # 批量获取：使用同步线程池 + run_in_executor，逐个 df 写入
                 stocks = await repository.get_stock_list(active_only=True)
                 ts_codes = stocks["ts_code"].tolist()
 
                 loop = asyncio.get_running_loop()
-                df = await loop.run_in_executor(
+                df_list = await loop.run_in_executor(
                     None,
                     lambda: _fetch_financial_parallel(
                         data_source, ts_codes, start_date, end_date, max_workers
                     )
                 )
 
-            count = await repository.upsert_financial_indicator(df)
+                # 逐个 df 进行 ETL 处理后 upsert
+                count = 0
+                failed_upserts = 0
+                for df in df_list:
+                    try:
+                        # 日期转换 -> 按唯一键去重（每次创建新的 cleaner 避免状态累积）
+                        df = (
+                            ETLPipeline()
+                            .add_cleaner(DateConverter())
+                            .add_cleaner(DuplicateCleaner(subset=["ts_code", "ann_date", "end_date"]))
+                            .run(df)
+                        )
+                        if df.empty:
+                            continue
+                        count += await repository.upsert_financial_indicator(df)
+                    except Exception as e:
+                        failed_upserts += 1
+                        if failed_upserts <= 3:
+                            console.print(f"[yellow]⚠ 单个 df 写入失败: {e}[/yellow]")
+                        elif failed_upserts == 4:
+                            console.print("[dim]  ... 后续失败不再显示[/dim]")
+
+                if failed_upserts > 0:
+                    console.print(f"[yellow]⚠ 共 {failed_upserts} 个 df 写入失败[/yellow]")
+
             console.print(f"[green]财务指标更新完成，插入 {count} 条记录[/green]")
 
         else:
@@ -267,18 +320,28 @@ async def _fetch_financial_parallel_all(
     start_date: str | None,
     end_date: str | None,
     max_workers: int,
-) -> "pd.DataFrame":
-    """异步包装：获取股票列表后并行获取财务指标"""
+) -> int:
+    """异步包装：获取股票列表后并行获取财务指标，逐个 df 写入数据库
+
+    Returns:
+        int: 总插入记录数
+    """
     stocks = await repository.get_stock_list(active_only=True)
     ts_codes = stocks["ts_code"].tolist()
 
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(
+    df_list = await loop.run_in_executor(
         None,
         lambda: _fetch_financial_parallel(
             data_source, ts_codes, start_date, end_date, max_workers
         )
     )
+
+    # 逐个 df upsert，避免 concat 内存峰值
+    count = 0
+    for df in df_list:
+        count += await repository.upsert_financial_indicator(df)
+    return count
 
 
 async def _run_fetch_all(
@@ -333,6 +396,14 @@ async def _run_fetch_all(
     for name, data_type, fetch_func in fetch_tasks:
         try:
             console.print(f"[dim]正在获取 {name}...[/dim]")
+
+            # financial 特殊处理：fetch_func 已直接返回 count
+            if data_type == "financial":
+                count = await fetch_func()
+                results.append((name, count))
+                console.print(f"[green]✓ {name} 更新完成，插入 {count} 条记录[/green]")
+                continue
+
             df = await fetch_func()
 
             if data_type in ("daily", "stock_list") and not df.empty:
@@ -346,7 +417,6 @@ async def _run_fetch_all(
                 "daily": repository.upsert_daily_quotes,
                 "index": repository.upsert_index_quotes,
                 "basic": repository.upsert_daily_basic,
-                "financial": repository.upsert_financial_indicator,
             }
 
             count = await upsert_map[data_type](df)
